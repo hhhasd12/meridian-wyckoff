@@ -1,0 +1,417 @@
+{
+  "timestamp": "2026-03-02T23:36:13.078048",
+  "summary": {
+    "ok": 55,
+    "warn": 3,
+    "fail": 0,
+    "passed": true
+  },
+  "results": [
+    {
+      "name": "Python 版本",
+      "status": "OK",
+      "message": "Python 3.11.9",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "包:numpy",
+      "status": "OK",
+      "message": "v2.4.2",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "包:pandas",
+      "status": "OK",
+      "message": "v2.3.3",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "包:scipy",
+      "status": "OK",
+      "message": "v1.15.3",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "包:matplotlib(可选)",
+      "status": "OK",
+      "message": "v3.10.8",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "包:scikit-learn(可选)",
+      "status": "OK",
+      "message": "v1.6.1",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "包:plotly(可选)",
+      "status": "OK",
+      "message": "v6.0.0",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:data.loader",
+      "status": "OK",
+      "message": "导入 OK，含: DataLoader",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:data.cleaner",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:data.feature_factory",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:data.binance_fetcher",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:backtest.engine",
+      "status": "OK",
+      "message": "导入 OK，含: BacktestEngine, BacktestResult, Trade",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:backtest.reporter",
+      "status": "OK",
+      "message": "导入 OK，含: BacktestReporter",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.mistake_book",
+      "status": "OK",
+      "message": "导入 OK，含: MistakeBook, MistakeType, ErrorSeverity, ErrorPattern",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.weight_variator",
+      "status": "OK",
+      "message": "导入 OK，含: WeightVariator, MutationType",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.weight_variator_legacy",
+      "status": "OK",
+      "message": "导入 OK，含: WeightVariator",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.wfa_backtester",
+      "status": "OK",
+      "message": "导入 OK，含: WFABacktester, PerformanceMetric",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.self_correction_workflow",
+      "status": "OK",
+      "message": "导入 OK，含: SelfCorrectionWorkflow",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.system_orchestrator",
+      "status": "OK",
+      "message": "导入 OK，含: SystemOrchestrator",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.market_regime",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.period_weight_filter",
+      "status": "OK",
+      "message": "导入 OK，含: PeriodWeightFilter",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.conflict_resolver",
+      "status": "OK",
+      "message": "导入 OK，含: ConflictResolutionManager",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.breakout_validator",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.micro_entry_validator",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.performance_monitor",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.evolution_archivist",
+      "status": "OK",
+      "message": "导入 OK，含: EvolutionArchivist",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.circuit_breaker",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.data_sanitizer",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.data_pipeline",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.config_system",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.curve_boundary",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.wyckoff_state_machine.state_definitions",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.wyckoff_state_machine.evidence_chain",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.evolution.operators",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.orchestrator.config",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.orchestrator.health",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.orchestrator.registry",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:core.orchestrator.flow",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:perception.candle_physical",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:perception.fvg_detector",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:perception.pin_body_analyzer",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:utils.error_handler",
+      "status": "OK",
+      "message": "导入 OK，含: error_handler",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:utils.config_loader",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:utils.visualizer",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "模块:visualization.heritage_panel",
+      "status": "OK",
+      "message": "导入 OK",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "接口:MarketDataLoader",
+      "status": "OK",
+      "message": "MarketDataLoader 导入写法正常",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:PKL D1 日线数据",
+      "status": "WARN",
+      "message": "不存在: data/binance_ETH_USDT_1d_730d.pkl",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:PKL H4 四小时数据",
+      "status": "WARN",
+      "message": "不存在: data/binance_ETH_USDT_4h_730d.pkl",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:PKL H1 小时数据",
+      "status": "WARN",
+      "message": "不存在: data/binance_ETH_USDT_1h_730d.pkl",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:CSV D1",
+      "status": "OK",
+      "message": "ETHUSDT_1d.csv (0.4 MB)",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:CSV H4",
+      "status": "OK",
+      "message": "ETHUSDT_4h.csv (2.4 MB)",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:CSV H1",
+      "status": "OK",
+      "message": "ETHUSDT_1h.csv (9.5 MB)",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:CSV M15",
+      "status": "OK",
+      "message": "ETHUSDT_15m.csv (37.2 MB)",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:CSV M5",
+      "status": "OK",
+      "message": "ETHUSDT_5m.csv (109.4 MB)",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "数据:总体",
+      "status": "OK",
+      "message": "至少存在部分数据文件",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "链路:end-to-end",
+      "status": "OK",
+      "message": "run_evolution.py 核心导入链路全部连通",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "目录:evolution_results",
+      "status": "OK",
+      "message": "存在且可写",
+      "detail": "",
+      "fix_applied": false
+    },
+    {
+      "name": "目录:logs",
+      "status": "OK",
+      "message": "存在且可写",
+      "detail": "",
+      "fix_applied": false
+    }
+  ]
+}

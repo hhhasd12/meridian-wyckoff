@@ -1,0 +1,13 @@
+{
+  "start_time": "2026-03-02T17:24:35.781776",
+  "end_time": "2026-03-02T17:24:56.877332",
+  "uptime": "0小时0分21秒",
+  "total_seconds": 21.09555673599243,
+  "processing_count": 5,
+  "evolution_count": 0,
+  "error_count": 0,
+  "paper_trading": true,
+  "last_signal": "neutral",
+  "last_signal_time": "2026-03-02T17:24:44.545699",
+  "config_file": "test_lifecycle.yaml"
+}

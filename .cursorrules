@@ -1,0 +1,7 @@
+任何代码重构必须同步更新对应的 tests/ 文件。
+
+严禁在测试代码中使用 sys.exit()。
+
+所有交易逻辑模块必须包含 @error_handler。
+
+项目已完成核心重构，所有逻辑调用必须优先指向 src/core/ 下的子包（如 orchestrator/, wyckoff_state_machine/, evolution/），而非根目录的重定向模块。

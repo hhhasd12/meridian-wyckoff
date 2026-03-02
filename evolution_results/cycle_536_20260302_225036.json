@@ -1,0 +1,836 @@
+{
+  "timestamp": "2026-03-02T22:50:36.001539",
+  "success": true,
+  "duration_seconds": 0.07,
+  "stages_completed": 5,
+  "cycle_results": {
+    "error_analysis": {
+      "stage": "ERROR_ANALYSIS",
+      "timestamp": "2026-03-02T22:50:35.935974",
+      "success": true,
+      "details": {
+        "total_errors": 808,
+        "pattern_analysis": {
+          "patterns": [
+            {
+              "pattern": "VOLATILITY_ADAPTATION_ERROR",
+              "count": 798,
+              "frequency": 0.9925373134328358,
+              "description": "波动率适应错误：在高低波动率市场中表现不稳定"
+            }
+          ],
+          "patterns_by_module": {
+            "conflict_resolver": {
+              "total_patterns": 5,
+              "top_patterns": [
+                {
+                  "pattern": "VOLATILITY_ADAPTATION_ERROR",
+                  "count": 2,
+                  "frequency": 0.4
+                },
+                {
+                  "pattern": "MULTI_TIMEFRAME_MISALIGNMENT",
+                  "count": 2,
+                  "frequency": 0.4
+                },
+                {
+                  "pattern": "FREQUENT_FALSE_POSITIVE",
+                  "count": 1,
+                  "frequency": 0.2
+                }
+              ]
+            },
+            "state_machine": {
+              "total_patterns": 3,
+              "top_patterns": [
+                {
+                  "pattern": "VOLATILITY_ADAPTATION_ERROR",
+                  "count": 2,
+                  "frequency": 0.6666666666666666
+                },
+                {
+                  "pattern": "MULTI_TIMEFRAME_MISALIGNMENT",
+                  "count": 1,
+                  "frequency": 0.3333333333333333
+                }
+              ]
+            },
+            "weight_filter": {
+              "total_patterns": 3,
+              "top_patterns": [
+                {
+                  "pattern": "TIMING_ERROR",
+                  "count": 2,
+                  "frequency": 0.6666666666666666
+                },
+                {
+                  "pattern": "VOLATILITY_ADAPTATION_ERROR",
+                  "count": 1,
+                  "frequency": 0.3333333333333333
+                }
+              ]
+            },
+            "wfa_backtester": {
+              "total_patterns": 793,
+              "top_patterns": [
+                {
+                  "pattern": "VOLATILITY_ADAPTATION_ERROR",
+                  "count": 793,
+                  "frequency": 1.0
+                }
+              ]
+            }
+          },
+          "time_analysis": {
+            "time_range": [
+              "2026-03-02 22:50:09.042490",
+              "2026-03-02 22:50:35.931923"
+            ],
+            "total_days": 0,
+            "errors_by_hour": {
+              "hourly_distribution": {
+                "22": 808
+              },
+              "peak_hour": 22,
+              "quiet_hour": 22,
+              "avg_errors_per_hour": 33.666666666666664
+            }
+          },
+          "summary": {
+            "total_records": 804,
+            "total_patterns": 804,
+            "avg_patterns_per_record": 1.0,
+            "most_common_pattern": [
+              "ErrorPattern.VOLATILITY_ADAPTATION_ERROR",
+              793
+            ]
+          }
+        },
+        "weight_adjustments": [],
+        "learning_batch_size": 10,
+        "error_distribution": {
+          "by_type": {
+            "MARKET_REGIME_ERROR": 5,
+            "BREAKOUT_VALIDATION_ERROR": 2,
+            "ENTRY_VALIDATION_ERROR": 4,
+            "CONFLICT_RESOLUTION_ERROR": 3,
+            "STATE_MISJUDGMENT": 1,
+            "WEIGHT_ASSIGNMENT_ERROR": 795
+          },
+          "by_severity": {
+            "LOW": 5,
+            "HIGH": 4,
+            "MEDIUM": 801
+          },
+          "by_module": {
+            "conflict_resolver": 6,
+            "state_machine": 4,
+            "weight_filter": 5,
+            "wfa_backtester": 795
+          }
+        }
+      },
+      "metrics": {
+        "error_coverage": 1.0,
+        "pattern_clarity": 0.1,
+        "adjustment_quality": 0.0
+      },
+      "error_message": null,
+      "duration_seconds": 0.000997
+    },
+    "mutation_generation": {
+      "stage": "MUTATION_GENERATION",
+      "timestamp": "2026-03-02T22:50:35.935974",
+      "success": true,
+      "details": {
+        "total_mutations": 2,
+        "mutation_details": [
+          {
+            "_config_full": {
+              "period_weight_filter": {
+                "weights": {
+                  "D1": 0.2789834113775066,
+                  "H4": 0.3,
+                  "H1": 0.25,
+                  "M15": 0.12,
+                  "M5": 0.08
+                },
+                "regime_weights": {
+                  "TRENDING_BULLISH": {
+                    "D1": 0.3,
+                    "H4": 0.35,
+                    "H1": 0.2,
+                    "M15": 0.1,
+                    "M5": 0.05
+                  },
+                  "TRENDING_BEARISH": {
+                    "D1": 0.3,
+                    "H4": 0.35,
+                    "H1": 0.2,
+                    "M15": 0.1,
+                    "M5": 0.05
+                  },
+                  "RANGING": {
+                    "D1": 0.15,
+                    "H4": 0.25,
+                    "H1": 0.3,
+                    "M15": 0.2,
+                    "M5": 0.1
+                  }
+                }
+              },
+              "threshold_parameters": {
+                "confidence_threshold": 0.6577726705409168,
+                "volume_threshold": 1.5,
+                "volatility_threshold": 0.02
+              },
+              "state_machine": {
+                "transition_confidence": 0.75,
+                "min_state_duration": 3,
+                "max_state_duration": 20
+              }
+            },
+            "config_summary": {
+              "period_weight_filter": {
+                "weights": {
+                  "D1": 0.2789834113775066,
+                  "H4": 0.3,
+                  "H1": 0.25,
+                  "M15": 0.12,
+                  "M5": 0.08
+                },
+                "regime_weights": {
+                  "TRENDING_BULLISH": {
+                    "D1": 0.3,
+                    "H4": 0.35,
+                    "H1": 0.2,
+                    "M15": 0.1,
+                    "M5": 0.05
+                  },
+                  "TRENDING_BEARISH": {
+                    "D1": 0.3,
+                    "H4": 0.35,
+                    "H1": 0.2,
+                    "M15": 0.1,
+                    "M5": 0.05
+                  },
+                  "RANGING": {
+                    "D1": 0.15,
+                    "H4": 0.25,
+                    "H1": 0.3,
+                    "M15": 0.2,
+                    "M5": 0.1
+                  }
+                }
+              },
+              "threshold_parameters": {
+                "confidence_threshold": 0.6577726705409168,
+                "volume_threshold": 1.5,
+                "volatility_threshold": 0.02
+              },
+              "state_machine": {
+                "type": "dict",
+                "keys": [
+                  "transition_confidence",
+                  "min_state_duration",
+                  "max_state_duration"
+                ]
+              }
+            }
+          },
+          {
+            "_config_full": {
+              "period_weight_filter": {
+                "weights": {
+                  "D1": 0.22667189058376777,
+                  "H4": 0.3,
+                  "H1": 0.25,
+                  "M15": 0.12,
+                  "M5": 0.08
+                },
+                "regime_weights": {
+                  "TRENDING_BULLISH": {
+                    "D1": 0.3,
+                    "H4": 0.35,
+                    "H1": 0.2,
+                    "M15": 0.1,
+                    "M5": 0.05
+                  },
+                  "TRENDING_BEARISH": {
+                    "D1": 0.3,
+                    "H4": 0.35,
+                    "H1": 0.2,
+                    "M15": 0.1,
+                    "M5": 0.05
+                  },
+                  "RANGING": {
+                    "D1": 0.15,
+                    "H4": 0.25,
+                    "H1": 0.3,
+                    "M15": 0.2,
+                    "M5": 0.1
+                  }
+                }
+              },
+              "threshold_parameters": {
+                "confidence_threshold": 0.7,
+                "volume_threshold": 1.5,
+                "volatility_threshold": 0.01996921210535407
+              },
+              "state_machine": {
+                "transition_confidence": 0.75,
+                "min_state_duration": 3,
+                "max_state_duration": 20
+              }
+            },
+            "config_summary": {
+              "period_weight_filter": {
+                "weights": {
+                  "D1": 0.22667189058376777,
+                  "H4": 0.3,
+                  "H1": 0.25,
+                  "M15": 0.12,
+                  "M5": 0.08
+                },
+                "regime_weights": {
+                  "TRENDING_BULLISH": {
+                    "D1": 0.3,
+                    "H4": 0.35,
+                    "H1": 0.2,
+                    "M15": 0.1,
+                    "M5": 0.05
+                  },
+                  "TRENDING_BEARISH": {
+                    "D1": 0.3,
+                    "H4": 0.35,
+                    "H1": 0.2,
+                    "M15": 0.1,
+                    "M5": 0.05
+                  },
+                  "RANGING": {
+                    "D1": 0.15,
+                    "H4": 0.25,
+                    "H1": 0.3,
+                    "M15": 0.2,
+                    "M5": 0.1
+                  }
+                }
+              },
+              "threshold_parameters": {
+                "confidence_threshold": 0.7,
+                "volume_threshold": 1.5,
+                "volatility_threshold": 0.01996921210535407
+              },
+              "state_machine": {
+                "type": "dict",
+                "keys": [
+                  "transition_confidence",
+                  "min_state_duration",
+                  "max_state_duration"
+                ]
+              }
+            }
+          }
+        ],
+        "pattern_based_mutations": 0,
+        "random_mutations": 2,
+        "source_patterns": []
+      },
+      "metrics": {
+        "mutation_diversity": 0.6666666666666666,
+        "pattern_coverage": 0.0,
+        "config_complexity": 0.52
+      },
+      "error_message": null,
+      "duration_seconds": 0.0
+    },
+    "wfa_validation": {
+      "stage": "WFA_VALIDATION",
+      "timestamp": "2026-03-02T22:50:36.000883",
+      "success": true,
+      "details": {
+        "total_validated": 2,
+        "accepted": 0,
+        "rejected": 2,
+        "acceptance_rate": 0.0,
+        "average_improvement": 0.03284947918594647,
+        "best_config_score": -Infinity,
+        "has_best_config": false,
+        "validation_report": {
+          "timestamp": "2026-03-02 22:50:36.000883",
+          "total_mutations": 2,
+          "accepted": 0,
+          "rejected": 2,
+          "acceptance_rate": 0.0,
+          "average_improvement": 0.03284947918594647,
+          "average_stability": 0.0,
+          "validation_details": [
+            {
+              "config_id": "mutation_794",
+              "result": "REJECTED",
+              "wfa_result": {
+                "num_windows": 5,
+                "test_performance": {
+                  "SHARPE_RATIO": 0.5623327387657918,
+                  "MAX_DRAWDOWN": 0.15889150152661397,
+                  "WIN_RATE": 0.3,
+                  "PROFIT_FACTOR": 0.6,
+                  "CALMAR_RATIO": 5.376443229380664,
+                  "STABILITY_SCORE": 0.8411084984733861,
+                  "COMPOSITE_SCORE": 0.6589978319096181,
+                  "SORTINO_RATIO": 0.0,
+                  "ULCR": 0.0,
+                  "DLCR": 0.0,
+                  "INFORMATION_RATIO": 0.0,
+                  "ALPHA": 0.0,
+                  "BETA": 0.0,
+                  "TRACKING_ERROR": 0.0,
+                  "VALUE_AT_RISK": 0.0,
+                  "EXPECTED_SHORTFALL": 0.0,
+                  "SKEWNESS": 0.0,
+                  "KURTOSIS": 0.0,
+                  "MAX_CONSECUTIVE_LOSSES": 0.0,
+                  "AVG_WINNING_TRADE": 0.0,
+                  "AVG_LOSING_TRADE": 0.0,
+                  "PROFIT_LOSS_RATIO": 0.0,
+                  "RECOVERY_FACTOR": 0.0,
+                  "RISK_ADJUSTED_RETURN": 0.0
+                },
+                "stability_scores": {
+                  "SHARPE_RATIO": 0.3176314904155101,
+                  "MAX_DRAWDOWN": 0.7715781742753649,
+                  "WIN_RATE": 0.4285714285714286,
+                  "PROFIT_FACTOR": 0.5505102572168218,
+                  "CALMAR_RATIO": 0.3980523528636429,
+                  "STABILITY_SCORE": 0.9470369212127309,
+                  "COMPOSITE_SCORE": 0.7141776432822425,
+                  "SORTINO_RATIO": 0.0,
+                  "ULCR": 0.0,
+                  "DLCR": 0.0,
+                  "INFORMATION_RATIO": 0.0,
+                  "ALPHA": 0.0,
+                  "BETA": 0.0,
+                  "TRACKING_ERROR": 0.0,
+                  "VALUE_AT_RISK": 0.0,
+                  "EXPECTED_SHORTFALL": 0.0,
+                  "SKEWNESS": 0.0,
+                  "KURTOSIS": 0.0,
+                  "MAX_CONSECUTIVE_LOSSES": 0.0,
+                  "AVG_WINNING_TRADE": 0.0,
+                  "AVG_LOSING_TRADE": 0.0,
+                  "PROFIT_LOSS_RATIO": 0.0,
+                  "RECOVERY_FACTOR": 0.0,
+                  "RISK_ADJUSTED_RETURN": 0.0
+                },
+                "overall_stability": 0.17198159449323924,
+                "composite_score": 0.34130490577835154,
+                "improvement_vs_baseline": 0.03405172002088258,
+                "is_statistically_significant": false,
+                "window_details": [
+                  {
+                    "window_index": 0,
+                    "train_start": 0,
+                    "train_end": 299,
+                    "test_start": 300,
+                    "test_end": 399,
+                    "test_performance": {
+                      "SHARPE_RATIO": 0.9634446706779686,
+                      "MAX_DRAWDOWN": 0.12200863384143006,
+                      "WIN_RATE": 1.0,
+                      "PROFIT_FACTOR": 1.0,
+                      "CALMAR_RATIO": 7.896528633622115,
+                      "STABILITY_SCORE": 0.87799136615857,
+                      "COMPOSITE_SCORE": 0.8359572824408487
+                    }
+                  },
+                  {
+                    "window_index": 1,
+                    "train_start": 200,
+                    "train_end": 499,
+                    "test_start": 500,
+                    "test_end": 599,
+                    "test_performance": {
+                      "SHARPE_RATIO": 0.13929330436550139,
+                      "MAX_DRAWDOWN": 0.15479666709725906,
+                      "WIN_RATE": 0.0,
+                      "PROFIT_FACTOR": 0.0,
+                      "CALMAR_RATIO": 0.89984692162644,
+                      "STABILITY_SCORE": 0.845203332902741,
+                      "COMPOSITE_SCORE": 0.4151648258976088
+                    }
+                  },
+                  {
+                    "window_index": 2,
+                    "train_start": 400,
+                    "train_end": 699,
+                    "test_start": 700,
+                    "test_end": 799,
+                    "test_performance": {
+                      "SHARPE_RATIO": 2.431828609799818,
+                      "MAX_DRAWDOWN": 0.1267263436049537,
+                      "WIN_RATE": 0.0,
+                      "PROFIT_FACTOR": 1.0,
+                      "CALMAR_RATIO": 19.189606048925402,
+                      "STABILITY_SCORE": 0.8732736563950463,
+                      "COMPOSITE_SCORE": 1.0509302978277253
+                    }
+                  },
+                  {
+                    "window_index": 3,
+                    "train_start": 600,
+                    "train_end": 899,
+                    "test_start": 900,
+                    "test_end": 999,
+                    "test_performance": {
+                      "SHARPE_RATIO": 0.575413567088601,
+                      "MAX_DRAWDOWN": 0.1407971263345248,
+                      "WIN_RATE": 0.5,
+                      "PROFIT_FACTOR": 1.0,
+                      "CALMAR_RATIO": 4.086827494770425,
+                      "STABILITY_SCORE": 0.8592028736654752,
+                      "COMPOSITE_SCORE": 0.6554946849216141
+                    }
+                  },
+                  {
+                    "window_index": 4,
+                    "train_start": 800,
+                    "train_end": 1099,
+                    "test_start": 1100,
+                    "test_end": 1199,
+                    "test_performance": {
+                      "SHARPE_RATIO": -1.2983164581029303,
+                      "MAX_DRAWDOWN": 0.25012873675490227,
+                      "WIN_RATE": 0.0,
+                      "PROFIT_FACTOR": 0.0,
+                      "CALMAR_RATIO": -5.190592952041063,
+                      "STABILITY_SCORE": 0.7498712632450977,
+                      "COMPOSITE_SCORE": 0.33744206846029395
+                    }
+                  }
+                ]
+              },
+              "performance": {
+                "SHARPE_RATIO": 0.5623327387657918,
+                "MAX_DRAWDOWN": 0.15889150152661397,
+                "WIN_RATE": 0.3,
+                "PROFIT_FACTOR": 0.6,
+                "CALMAR_RATIO": 5.376443229380664,
+                "STABILITY_SCORE": 0.8411084984733861,
+                "COMPOSITE_SCORE": 0.6589978319096181,
+                "SORTINO_RATIO": 0.0,
+                "ULCR": 0.0,
+                "DLCR": 0.0,
+                "INFORMATION_RATIO": 0.0,
+                "ALPHA": 0.0,
+                "BETA": 0.0,
+                "TRACKING_ERROR": 0.0,
+                "VALUE_AT_RISK": 0.0,
+                "EXPECTED_SHORTFALL": 0.0,
+                "SKEWNESS": 0.0,
+                "KURTOSIS": 0.0,
+                "MAX_CONSECUTIVE_LOSSES": 0.0,
+                "AVG_WINNING_TRADE": 0.0,
+                "AVG_LOSING_TRADE": 0.0,
+                "PROFIT_LOSS_RATIO": 0.0,
+                "RECOVERY_FACTOR": 0.0,
+                "RISK_ADJUSTED_RETURN": 0.0
+              },
+              "improvement": 0.03405172002088258,
+              "stability": 0.0
+            },
+            {
+              "config_id": "mutation_795",
+              "result": "REJECTED",
+              "wfa_result": {
+                "num_windows": 5,
+                "test_performance": {
+                  "SHARPE_RATIO": 0.5485452227748644,
+                  "MAX_DRAWDOWN": 0.16017632296335177,
+                  "WIN_RATE": 0.3,
+                  "PROFIT_FACTOR": 0.6,
+                  "CALMAR_RATIO": 5.382772020671526,
+                  "STABILITY_SCORE": 0.8398236770366483,
+                  "COMPOSITE_SCORE": 0.6608019909172924,
+                  "SORTINO_RATIO": 0.0,
+                  "ULCR": 0.0,
+                  "DLCR": 0.0,
+                  "INFORMATION_RATIO": 0.0,
+                  "ALPHA": 0.0,
+                  "BETA": 0.0,
+                  "TRACKING_ERROR": 0.0,
+                  "VALUE_AT_RISK": 0.0,
+                  "EXPECTED_SHORTFALL": 0.0,
+                  "SKEWNESS": 0.0,
+                  "KURTOSIS": 0.0,
+                  "MAX_CONSECUTIVE_LOSSES": 0.0,
+                  "AVG_WINNING_TRADE": 0.0,
+                  "AVG_LOSING_TRADE": 0.0,
+                  "PROFIT_LOSS_RATIO": 0.0,
+                  "RECOVERY_FACTOR": 0.0,
+                  "RISK_ADJUSTED_RETURN": 0.0
+                },
+                "stability_scores": {
+                  "SHARPE_RATIO": 0.3041315908927625,
+                  "MAX_DRAWDOWN": 0.7714332509619568,
+                  "WIN_RATE": 0.4285714285714286,
+                  "PROFIT_FACTOR": 0.5505102572168218,
+                  "CALMAR_RATIO": 0.3920191735485866,
+                  "STABILITY_SCORE": 0.9465126216404749,
+                  "COMPOSITE_SCORE": 0.7097385312226285,
+                  "SORTINO_RATIO": 0.0,
+                  "ULCR": 0.0,
+                  "DLCR": 0.0,
+                  "INFORMATION_RATIO": 0.0,
+                  "ALPHA": 0.0,
+                  "BETA": 0.0,
+                  "TRACKING_ERROR": 0.0,
+                  "VALUE_AT_RISK": 0.0,
+                  "EXPECTED_SHORTFALL": 0.0,
+                  "SKEWNESS": 0.0,
+                  "KURTOSIS": 0.0,
+                  "MAX_CONSECUTIVE_LOSSES": 0.0,
+                  "AVG_WINNING_TRADE": 0.0,
+                  "AVG_LOSING_TRADE": 0.0,
+                  "PROFIT_LOSS_RATIO": 0.0,
+                  "RECOVERY_FACTOR": 0.0,
+                  "RISK_ADJUSTED_RETURN": 0.0
+                },
+                "overall_stability": 0.17095486891894418,
+                "composite_score": 0.3379993122270515,
+                "improvement_vs_baseline": 0.031647238351010354,
+                "is_statistically_significant": false,
+                "window_details": [
+                  {
+                    "window_index": 0,
+                    "train_start": 0,
+                    "train_end": 299,
+                    "test_start": 300,
+                    "test_end": 399,
+                    "test_performance": {
+                      "SHARPE_RATIO": 1.0936800834633797,
+                      "MAX_DRAWDOWN": 0.12212546043126961,
+                      "WIN_RATE": 1.0,
+                      "PROFIT_FACTOR": 1.0,
+                      "CALMAR_RATIO": 8.955381454458356,
+                      "STABILITY_SCORE": 0.8778745395687304,
+                      "COMPOSITE_SCORE": 0.8684635636717737
+                    }
+                  },
+                  {
+                    "window_index": 1,
+                    "train_start": 200,
+                    "train_end": 499,
+                    "test_start": 500,
+                    "test_end": 599,
+                    "test_performance": {
+                      "SHARPE_RATIO": 0.10662507419355201,
+                      "MAX_DRAWDOWN": 0.15993406162155896,
+                      "WIN_RATE": 0.0,
+                      "PROFIT_FACTOR": 0.0,
+                      "CALMAR_RATIO": 0.6666814630510143,
+                      "STABILITY_SCORE": 0.840065938378441,
+                      "COMPOSITE_SCORE": 0.4046859408186865
+                    }
+                  },
+                  {
+                    "window_index": 2,
+                    "train_start": 400,
+                    "train_end": 699,
+                    "test_start": 700,
+                    "test_end": 799,
+                    "test_performance": {
+                      "SHARPE_RATIO": 2.4269629745416292,
+                      "MAX_DRAWDOWN": 0.12672133423699952,
+                      "WIN_RATE": 0.0,
+                      "PROFIT_FACTOR": 1.0,
+                      "CALMAR_RATIO": 19.151968286591917,
+                      "STABILITY_SCORE": 0.8732786657630005,
+                      "COMPOSITE_SCORE": 1.0497161432287576
+                    }
+                  },
+                  {
+                    "window_index": 3,
+                    "train_start": 600,
+                    "train_end": 899,
+                    "test_start": 900,
+                    "test_end": 999,
+                    "test_performance": {
+                      "SHARPE_RATIO": 0.5303585928174508,
+                      "MAX_DRAWDOWN": 0.14073114303711814,
+                      "WIN_RATE": 0.5,
+                      "PROFIT_FACTOR": 1.0,
+                      "CALMAR_RATIO": 3.7685943663341637,
+                      "STABILITY_SCORE": 0.8592688569628819,
+                      "COMPOSITE_SCORE": 0.6442606338376595
+                    }
+                  },
+                  {
+                    "window_index": 4,
+                    "train_start": 800,
+                    "train_end": 1099,
+                    "test_start": 1100,
+                    "test_end": 1199,
+                    "test_performance": {
+                      "SHARPE_RATIO": -1.41490061114169,
+                      "MAX_DRAWDOWN": 0.25136961548981274,
+                      "WIN_RATE": 0.0,
+                      "PROFIT_FACTOR": 0.0,
+                      "CALMAR_RATIO": -5.628765467077828,
+                      "STABILITY_SCORE": 0.7486303845101873,
+                      "COMPOSITE_SCORE": 0.3368836730295843
+                    }
+                  }
+                ]
+              },
+              "performance": {
+                "SHARPE_RATIO": 0.5485452227748644,
+                "MAX_DRAWDOWN": 0.16017632296335177,
+                "WIN_RATE": 0.3,
+                "PROFIT_FACTOR": 0.6,
+                "CALMAR_RATIO": 5.382772020671526,
+                "STABILITY_SCORE": 0.8398236770366483,
+                "COMPOSITE_SCORE": 0.6608019909172924,
+                "SORTINO_RATIO": 0.0,
+                "ULCR": 0.0,
+                "DLCR": 0.0,
+                "INFORMATION_RATIO": 0.0,
+                "ALPHA": 0.0,
+                "BETA": 0.0,
+                "TRACKING_ERROR": 0.0,
+                "VALUE_AT_RISK": 0.0,
+                "EXPECTED_SHORTFALL": 0.0,
+                "SKEWNESS": 0.0,
+                "KURTOSIS": 0.0,
+                "MAX_CONSECUTIVE_LOSSES": 0.0,
+                "AVG_WINNING_TRADE": 0.0,
+                "AVG_LOSING_TRADE": 0.0,
+                "PROFIT_LOSS_RATIO": 0.0,
+                "RECOVERY_FACTOR": 0.0,
+                "RISK_ADJUSTED_RETURN": 0.0
+              },
+              "improvement": 0.031647238351010354,
+              "stability": 0.0
+            }
+          ],
+          "current_baseline_performance": {
+            "SHARPE_RATIO": 0.27348046703228895,
+            "MAX_DRAWDOWN": 0.3536887346556137,
+            "WIN_RATE": 0.2857142857142857,
+            "PROFIT_FACTOR": 1.7058901202319754,
+            "CALMAR_RATIO": 0.7732235726947214,
+            "STABILITY_SCORE": 0.6463112653443863,
+            "COMPOSITE_SCORE": 0.48736183503178765
+          },
+          "current_accepted_performance": {
+            "SHARPE_RATIO": 0.27348046703228895,
+            "MAX_DRAWDOWN": 0.3536887346556137,
+            "WIN_RATE": 0.2857142857142857,
+            "PROFIT_FACTOR": 1.7058901202319754,
+            "CALMAR_RATIO": 0.7732235726947214,
+            "STABILITY_SCORE": 0.6463112653443863,
+            "COMPOSITE_SCORE": 0.48736183503178765
+          }
+        }
+      },
+      "metrics": {
+        "acceptance_rate": 0.0,
+        "average_improvement": 0.03284947918594647,
+        "validation_quality": 0.0
+      },
+      "error_message": null,
+      "duration_seconds": 0.064909
+    },
+    "config_update": {
+      "stage": "CONFIG_UPDATE",
+      "timestamp": "2026-03-02T22:50:36.000883",
+      "success": true,
+      "details": {
+        "reason": "本轮无改进配置，保持当前参数不变"
+      },
+      "metrics": {},
+      "error_message": null,
+      "duration_seconds": 0.0
+    },
+    "evaluation": {
+      "stage": "EVALUATION",
+      "timestamp": "2026-03-02T22:50:36.001539",
+      "success": true,
+      "details": {
+        "evaluation_period_hours": 24,
+        "next_evaluation_time": "2026-03-03T22:50:36.000883",
+        "total_corrections": 2679,
+        "successful_corrections": 2679,
+        "current_config_status": "active"
+      },
+      "metrics": {
+        "correction_success_rate": 1.0,
+        "system_stability": 0.8,
+        "performance_trend": 0.1
+      },
+      "error_message": null,
+      "duration_seconds": 0.000656
+    }
+  },
+  "current_config": {
+    "period_weight_filter": {
+      "weights": {
+        "D1": 0.25,
+        "H4": 0.3,
+        "H1": 0.25,
+        "M15": 0.12,
+        "M5": 0.08
+      },
+      "regime_weights": {
+        "TRENDING_BULLISH": {
+          "D1": 0.3,
+          "H4": 0.35,
+          "H1": 0.2,
+          "M15": 0.1,
+          "M5": 0.05
+        },
+        "TRENDING_BEARISH": {
+          "D1": 0.3,
+          "H4": 0.35,
+          "H1": 0.2,
+          "M15": 0.1,
+          "M5": 0.05
+        },
+        "RANGING": {
+          "D1": 0.15,
+          "H4": 0.25,
+          "H1": 0.3,
+          "M15": 0.2,
+          "M5": 0.1
+        }
+      }
+    },
+    "threshold_parameters": {
+      "confidence_threshold": 0.7,
+      "volume_threshold": 1.5,
+      "volatility_threshold": 0.02
+    },
+    "state_machine": {
+      "type": "dict",
+      "keys": [
+        "transition_confidence",
+        "min_state_duration",
+        "max_state_duration"
+      ]
+    }
+  },
+  "workflow_status": {
+    "is_running": true,
+    "current_stage": "EVALUATION",
+    "total_corrections": 2680,
+    "last_correction_time": "2026-03-02T22:50:36.001539"
+  },
+  "metrics": {
+    "COMPOSITE_SCORE": 0.6608019909172924,
+    "SHARPE_RATIO": 0.5485452227748644,
+    "MAX_DRAWDOWN": 0.16017632296335177,
+    "WIN_RATE": 0.3,
+    "PROFIT_FACTOR": 0.6,
+    "CALMAR_RATIO": 5.382772020671526,
+    "STABILITY_SCORE": 0.8398236770366483
+  }
+}

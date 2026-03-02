@@ -1,0 +1,84 @@
+[project]
+name = "wyckoff-trading-engine"
+version = "1.0.0"
+description = "威科夫全自动逻辑引擎 - 加密货币量化交易系统"
+requires-python = ">=3.9,<3.12"
+
+[tool.ruff]
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "C4", "PIE", "T20", "PT", "Q", "RSE", "RET", "SIM", "PTH", "PGH", "PL", "TRY", "RUF"]
+ignore = [
+    "E501",
+    "PLR0913",
+    "PLR2004",
+    "PLW0603",
+    "C901",
+    "PT001",
+    "PT004",
+    "TRY003",
+    "RSE102",
+    # 忽略中文全角标点规则（注释和文档字符串中使用中文标点）
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # 中等优先级：逻辑优化警告（可选修复）
+    "SIM102",  # 嵌套if语句
+    "TRY300",   # else块优化
+    "PLR0912", # 分支过多（需要重构）
+    "E402",    # 导入位置
+    "PLC0415", # 导入位置
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "PLR2004", "PT"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-v --strict-markers"
+filterwarnings = [
+    # 遗留测试脚本同时作为独立脚本运行，return值是有意设计
+    "ignore::pytest.PytestReturnNotNoneWarning",
+    # unittest.TestCase 中的 async 方法（DeprecationWarning）和协程未await（RuntimeWarning）
+    "ignore::RuntimeWarning",
+    "ignore::DeprecationWarning:unittest",
+    # 业务逻辑层的预期UserWarning（K线异常、无效配置参数 - 均为测试中有意触发的路径）
+    "ignore::UserWarning:src.perception.candle_physical",
+    "ignore::UserWarning:src.core.config_system",
+    # pandas FutureWarning（已修复主要来源，保留过滤防止依赖库触发）
+    "default::FutureWarning",
+]
+markers = [
+    "slow: 慢速测试",
+    "integration: 集成测试",
+    "unit: 单元测试",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*.py", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
