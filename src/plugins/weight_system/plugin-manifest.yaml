@@ -1,0 +1,37 @@
+name: weight_system
+version: "1.0.0"
+description: "周期权重系统插件 - 管理多时间框架权重分配与加权决策"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: analysis
+
+dependencies:
+  - market_regime
+
+events:
+  publishes:
+    - weight_system.weights_calculated
+    - weight_system.weighted_score_calculated
+    - weight_system.weighted_decision_made
+    - weight_system.timeframe_focus_recommended
+  subscribes:
+    - market_regime.detected
+    - state_machine.signal_generated
+    - system.config_update
+
+config_schema:
+  weights:
+    type: object
+    description: "自定义各时间框架权重"
+  regime_adjustments:
+    type: object
+    description: "自定义市场体制调整系数"
+  normalize:
+    type: bool
+    default: true
+    description: "是否归一化权重"
+  min_weight:
+    type: float
+    default: 0.05
+    description: "最小权重限制"

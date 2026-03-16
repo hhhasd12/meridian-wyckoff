@@ -1,0 +1,50 @@
+name: orchestrator
+version: "1.0.0"
+description: "系统协调器插件 - 统一调度所有模块，实现完整的交易决策流水线"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: core
+
+dependencies:
+  - market_regime
+  - data_pipeline
+  - perception
+  - pattern_detection
+  - wyckoff_state_machine
+  - weight_system
+  - signal_validation
+  - risk_management
+  - position_manager
+  - evolution
+
+events:
+  publishes:
+    - orchestrator.started
+    - orchestrator.stopped
+    - orchestrator.decision_made
+    - orchestrator.market_data_processed
+    - orchestrator.evolution_cycle_completed
+    - orchestrator.error_occurred
+  subscribes:
+    - market_regime.detected
+    - state_machine.signal_generated
+    - signal_validation.entry_validated
+    - risk_management.anomaly_validated
+    - position.opened
+    - position.closed
+    - system.config_update
+
+config_schema:
+  mode:
+    type: string
+    default: "paper"
+    description: "系统运行模式: backtest, paper, live, evolution"
+  symbols:
+    type: array
+    default: []
+    description: "交易对列表"
+  timeframes:
+    type: array
+    default: ["H4", "H1", "M15"]
+    description: "时间框架列表"

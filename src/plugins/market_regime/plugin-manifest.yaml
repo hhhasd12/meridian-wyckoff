@@ -1,0 +1,39 @@
+name: market_regime
+version: "1.0.0"
+description: "市场体制（Regime）检测插件 — 基于ATR、ADX、历史波动率判断市场体制"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: core
+
+dependencies: []
+
+events:
+  publishes:
+    - market_regime.detected
+    - market_regime.changed
+  subscribes:
+    - data_pipeline.ohlcv_ready
+    - system.config_update
+
+config_schema:
+  atr_period:
+    type: int
+    default: 14
+    description: "ATR计算周期"
+  adx_period:
+    type: int
+    default: 14
+    description: "ADX计算周期"
+  volatility_lookback:
+    type: int
+    default: 20
+    description: "波动率回看周期"
+  trending_threshold:
+    type: float
+    default: 25.0
+    description: "趋势阈值（ADX > 此值判定为趋势市）"
+  volatility_threshold:
+    type: float
+    default: 1.5
+    description: "高波动阈值（ATR/均值 > 此值判定为高波动）"

@@ -1,0 +1,34 @@
+name: dashboard
+version: "1.0.0"
+description: "Web仪表盘插件 - 提供实时监控界面和API"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: ui
+
+dependencies:
+  - market_regime
+  - orchestrator
+
+events:
+  publishes:
+    - dashboard.snapshot_created
+    - dashboard.monitoring_started
+    - dashboard.monitoring_stopped
+    - dashboard.alert_triggered
+    - dashboard.health_report_generated
+    - dashboard.metric_recorded
+  subscribes:
+    - orchestrator.decision_made
+    - state_machine.state_changed
+    - position.opened
+    - position.closed
+    - system.config_update
+
+config_schema:
+  visualizer:
+    type: object
+    description: "可视化器配置"
+  monitor:
+    type: object
+    description: "监控器配置"

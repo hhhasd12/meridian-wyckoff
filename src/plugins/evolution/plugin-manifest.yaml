@@ -1,0 +1,42 @@
+name: evolution
+version: "1.0.0"
+description: "进化系统插件 - 封装进化档案员，管理向量化记忆系统"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: analysis
+
+dependencies:
+  - market_regime
+
+events:
+  publishes:
+    - evolution.log_recorded
+    - evolution.started
+    - evolution.stopped
+    - evolution.memory_cleared
+    - evolution.query_completed
+  subscribes:
+    - orchestrator.decision_made
+    - system.config_update
+
+config_schema:
+  storage_path:
+    type: string
+    default: "./evolution_memory.jsonl"
+    description: "进化记忆存储路径"
+  embedding_provider:
+    type: object
+    description: "嵌入提供者配置"
+  max_queue_size:
+    type: int
+    default: 1000
+    description: "最大队列大小"
+  process_interval:
+    type: float
+    default: 1.0
+    description: "处理间隔（秒）"
+  similarity_threshold:
+    type: float
+    default: 0.7
+    description: "相似度阈值"

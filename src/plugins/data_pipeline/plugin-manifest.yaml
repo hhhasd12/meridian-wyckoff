@@ -1,0 +1,50 @@
+name: data_pipeline
+version: "1.0.0"
+description: "数据管道插件 - 多周期数据同步与缓存，支持CCXT/YFinance/CSV/API多数据源"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: core
+
+dependencies:
+  - exchange_connector
+
+events:
+  publishes:
+    - data_pipeline.ohlcv_ready
+    - data_pipeline.multi_tf_ready
+    - data_pipeline.data_quality_alert
+    - data_pipeline.source_error
+  subscribes:
+    - exchange.ohlcv_fetched
+    - system.config_update
+
+config_schema:
+  redis_host:
+    type: string
+    default: "localhost"
+    description: "Redis主机地址"
+  redis_port:
+    type: int
+    default: 6379
+    description: "Redis端口"
+  cache_ttl:
+    type: int
+    default: 3600
+    description: "缓存过期时间（秒）"
+  max_retries:
+    type: int
+    default: 3
+    description: "最大重试次数"
+  request_timeout:
+    type: int
+    default: 30
+    description: "请求超时时间（秒）"
+  enable_validation:
+    type: bool
+    default: true
+    description: "启用数据验证"
+  enable_cache:
+    type: bool
+    default: true
+    description: "启用缓存"

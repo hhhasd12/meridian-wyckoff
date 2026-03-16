@@ -1,0 +1,37 @@
+name: wyckoff_state_machine
+version: "1.0.0"
+description: "威科夫状态机插件 - 实现13个吸筹节点和9个派发节点的辩证状态转换逻辑"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: analysis
+
+dependencies:
+  - market_regime
+  - pattern_detection
+
+events:
+  publishes:
+    - state_machine.state_changed
+    - state_machine.candle_processed
+    - state_machine.signal_generated
+    - state_machine.error_occurred
+  subscribes:
+    - pattern_detection.tr_detected
+    - pattern_detection.wyckoff_phase_detected
+    - data_pipeline.ohlcv_ready
+    - system.config_update
+
+config_schema:
+  heritage_decay:
+    type: float
+    default: 0.95
+    description: "遗产分数衰减率"
+  min_confidence:
+    type: float
+    default: 0.3
+    description: "最小置信度阈值"
+  max_parallel_paths:
+    type: int
+    default: 3
+    description: "最大并行路径数"
