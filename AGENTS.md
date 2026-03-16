@@ -4,7 +4,46 @@
 
 ## 项目概述
 
-威科夫全自动逻辑引擎是一个基于威科夫理论的自动化交易系统，用于加密货币市场。项目采用模块化设计，包含市场体制检测、状态机、风险管理、自动化进化等核心模块。
+威科夫全自动逻辑引擎是一个基于威科夫理论的自动化交易系统，用于加密货币市场。项目采用**三层插件化架构**设计：
+
+### 架构层次
+
+```
+src/
+├── kernel/          # 内核层（不可插拔）— 插件生命周期、事件总线、配置系统
+│   ├── types.py           # 所有共享类型定义（枚举、数据类）
+│   ├── base_plugin.py     # 插件抽象基类
+│   ├── plugin_manifest.py # Manifest 解析器
+│   ├── plugin_manager.py  # 插件生命周期管理
+│   ├── event_bus.py       # 事件总线（发布/订阅）
+│   └── config_system.py   # 配置系统（YAML + 环境变量）
+├── plugins/         # 插件层（可插拔）— 13个业务插件
+│   ├── market_regime/     # 市场体制检测
+│   ├── data_pipeline/     # 数据管道
+│   ├── orchestrator/      # 系统编排器
+│   ├── wyckoff_state_machine/  # 威科夫状态机
+│   ├── pattern_detection/ # K线形态识别
+│   ├── perception/        # 感知层
+│   ├── signal_validation/ # 信号验证
+│   ├── risk_management/   # 风险管理
+│   ├── weight_system/     # 权重系统
+│   ├── evolution/         # 自动化进化
+│   ├── exchange_connector/# 交易所连接器
+│   ├── dashboard/         # Web 仪表盘
+│   └── self_correction/   # 自我纠错
+├── core/            # 兼容层（已废弃，保留向后兼容）
+└── utils/           # 工具层
+```
+
+### 系统入口
+
+- **`src/app.py`** — `WyckoffApp` 类，插件化系统入口
+- **`run_live.py`** — 生产模式启动脚本，调用 `WyckoffApp`
+
+### 关键文档
+
+- **`docs/PLUGIN_DEVELOPMENT.md`** — 插件开发完整指南
+- **`plans/plugin_architecture_plan.md`** — 架构设计方案
 
 ## 构建和测试命令
 
@@ -34,6 +73,18 @@ mypy src/
 # 运行所有测试
 pytest tests/ -v
 
+# 运行内核测试
+pytest tests/kernel/ -v
+
+# 运行插件测试
+pytest tests/plugins/ -v
+
+# 运行特定插件测试
+pytest tests/plugins/test_market_regime.py -v
+
+# 运行核心模块测试（兼容层）
+pytest tests/core/ -v
+
 # 运行特定测试文件
 pytest tests/core/test_market_regime.py -v
 
@@ -42,9 +93,6 @@ pytest tests/core/test_market_regime.py::TestMarketRegime::test_enum_values -v
 
 # 运行测试并生成覆盖率报告
 pytest tests/ --cov=src --cov-report=html --cov-report=term
-
-# 运行特定模块的测试
-pytest tests/core/ -v
 
 # 快速测试模式（不显示详细输出）
 pytest tests/ -q
@@ -60,6 +108,9 @@ python run_live.py
 
 # 启动系统（自定义配置）
 python run_live.py config_production.yaml
+
+# 运行健康检查
+python health_check.py
 
 # 运行安装脚本
 python setup.py
@@ -278,29 +329,35 @@ mypy src/
 
 ## 模块依赖规范
 
-- 核心模块（`src/core/`）不应依赖可视化模块
-- 打破循环依赖，使用接口或回调
-- 新功能优先考虑添加到现有模块，而不是创建新模块
+- **内核层**（`src/kernel/`）不依赖任何插件，是系统基础
+- **插件层**（`src/plugins/`）只依赖内核层，插件间通过事件总线通信
+- **兼容层**（`src/core/`）已废弃，仅保留向后兼容的 shim 导入
+- 打破循环依赖，使用事件总线或回调
+- 新功能优先以**插件**形式开发，参考 `docs/PLUGIN_DEVELOPMENT.md`
 - 保持模块职责单一，避免上帝对象
 
 ## 配置管理
 
 - 使用YAML配置文件（`config.yaml`）
 - 配置参数应有默认值和类型验证
-- 生产环境配置使用环境变量覆盖
+- 生产环境配置使用环境变量覆盖（前缀 `WYCKOFF_`）
+- 插件配置在 `config.yaml` 的 `plugins` 节下
 - 配置更改需要文档说明
 
 ## 扩展开发
 
-添加新功能时：
-1. 先在`src/`下创建模块或扩展现有模块
-2. 编写单元测试
-3. 更新配置文件模板（如果需要）
-4. 更新相关文档
-5. 运行完整测试套件
+添加新插件时：
+1. 在 `src/plugins/` 下创建插件目录
+2. 编写 `plugin-manifest.yaml` 和 `plugin.py`（继承 `BasePlugin`）
+3. 编写单元测试（`tests/plugins/test_xxx.py`）
+4. 在 `config.yaml` 的 `plugins` 节添加配置
+5. 更新相关文档
+6. 运行完整测试套件：`pytest tests/ -v`
+
+详细指南参见 **`docs/PLUGIN_DEVELOPMENT.md`**。
 
 ---
 
-*本文档最后更新：2026-02-20*  
-*对应项目版本：威科夫全自动逻辑引擎 v1.0*  
-*参考文件：requirements.txt, setup.py, config.yaml, src/core/market_regime.py*
+*本文档最后更新：2026-03-10*  
+*对应项目版本：威科夫全自动逻辑引擎 v2.0（插件化架构）*  
+*参考文件：requirements.txt, setup.py, config.yaml, src/app.py, docs/PLUGIN_DEVELOPMENT.md*
