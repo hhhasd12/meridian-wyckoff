@@ -5,22 +5,24 @@
 
 运行: python fetch_data.py
 
+从币安能拿到的最早时间开始，拉取全量历史数据。
+
 需要代理时:
     set HTTPS_PROXY=http://127.0.0.1:7890
     python fetch_data.py
 
 输出:
-    data/ETHUSDT_1d.csv   (730 天)
-    data/ETHUSDT_4h.csv   (730 天)
-    data/ETHUSDT_1h.csv   (365 天)
-    data/ETHUSDT_15m.csv  (180 天)
-    data/ETHUSDT_5m.csv   (90 天)
+    data/ETHUSDT_1d.csv
+    data/ETHUSDT_4h.csv
+    data/ETHUSDT_1h.csv
+    data/ETHUSDT_15m.csv
+    data/ETHUSDT_5m.csv
 """
 
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import ccxt
 import pandas as pd
@@ -30,13 +32,11 @@ DATA_DIR = "data"
 BATCH_LIMIT = 1500
 REQUEST_DELAY = 0.3
 
-TIMEFRAMES = [
-    ("1d", 730),
-    ("4h", 730),
-    ("1h", 365),
-    ("15m", 180),
-    ("5m", 90),
-]
+# ETH/USDT 在币安上线时间: 2017-08-17
+# since=0 让 ccxt 从交易所最早可用数据开始
+ETH_LISTING_MS = int(datetime(2017, 8, 17).timestamp() * 1000)
+
+TIMEFRAMES = ["1d", "4h", "1h", "15m", "5m"]
 
 
 def create_exchange() -> ccxt.binance:
@@ -65,9 +65,9 @@ def create_exchange() -> ccxt.binance:
     return exchange
 
 
-def fetch_ohlcv(exchange: ccxt.binance, timeframe: str, days: int) -> pd.DataFrame:
-    """分页获取 K 线数据"""
-    since = int((datetime.utcnow() - timedelta(days=days)).timestamp() * 1000)
+def fetch_ohlcv(exchange: ccxt.binance, timeframe: str) -> pd.DataFrame:
+    """从最早可用数据开始，分页拉取全量 K 线"""
+    since = ETH_LISTING_MS
     all_ohlcv = []
 
     while True:
@@ -123,13 +123,13 @@ def main():
 
     results = []
 
-    for timeframe, days in TIMEFRAMES:
+    for timeframe in TIMEFRAMES:
         filepath = os.path.join(DATA_DIR, f"ETHUSDT_{timeframe}.csv")
 
-        print(f"\n  [{timeframe:>3}] {days} 天 → {filepath}")
+        print(f"\n  [{timeframe:>3}] 全量 → {filepath}")
 
         try:
-            df = fetch_ohlcv(exchange, timeframe, days)
+            df = fetch_ohlcv(exchange, timeframe)
             df.to_csv(filepath)
 
             size_kb = os.path.getsize(filepath) / 1024
