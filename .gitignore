@@ -1,2 +1,40 @@
 data/
 *.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.venv/
+venv/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Logs & runtime artifacts
+logs/snapshots/
+*.log
+system_state.json
+health_report.json
+run_output.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Trae directory
+.trae/
