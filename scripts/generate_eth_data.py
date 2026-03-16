@@ -108,7 +108,7 @@ def main():
         print(f"Generate {tf} data ({days} days)...")
         df = generate_eth_data(tf, days)
 
-        filename = f"data/ETH_USDT_{tf}.csv"
+        filename = f"data/ETHUSDT_{tf}.csv"
         df.to_csv(filename)
 
         print(f"  OK: {filename}")

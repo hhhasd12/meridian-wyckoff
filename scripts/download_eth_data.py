@@ -77,7 +77,7 @@ def download_eth_data():
             df.set_index("timestamp", inplace=True)
 
             # 保存到CSV
-            filename = f"data/ETH_USDT_{name}.csv"
+            filename = f"data/ETHUSDT_{name}.csv"
             df.to_csv(filename)
 
             print(f"  ✅ 保存成功: {filename}")

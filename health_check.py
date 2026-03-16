@@ -386,14 +386,11 @@ def check_data_files(report: HealthReport):
     base = Path(__file__).parent / "data"
 
     files = {
-        "data/binance_ETH_USDT_1d_730d.pkl": ("PKL D1 日线数据", True),
-        "data/binance_ETH_USDT_4h_730d.pkl": ("PKL H4 四小时数据", True),
-        "data/binance_ETH_USDT_1h_730d.pkl": ("PKL H1 小时数据", False),
-        "data/ETHUSDT_1d.csv": ("CSV D1", False),
-        "data/ETHUSDT_4h.csv": ("CSV H4", False),
-        "data/ETHUSDT_1h.csv": ("CSV H1", False),
-        "data/ETHUSDT_15m.csv": ("CSV M15", False),
-        "data/ETHUSDT_5m.csv": ("CSV M5", False),
+        "data/ETHUSDT_1d.csv": ("CSV D1 日线数据", True),
+        "data/ETHUSDT_4h.csv": ("CSV H4 四小时数据", True),
+        "data/ETHUSDT_1h.csv": ("CSV H1 小时数据", True),
+        "data/ETHUSDT_15m.csv": ("CSV M15 15分钟数据", False),
+        "data/ETHUSDT_5m.csv": ("CSV M5 5分钟数据", False),
     }
 
     any_data = False

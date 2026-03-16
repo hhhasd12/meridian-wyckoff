@@ -65,7 +65,7 @@ for tf, target in [("4h", 3000), ("1h", 8000), ("15m", 10000)]:
         )
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df.set_index("timestamp", inplace=True)
-        df.to_csv(f"data/ETH_USDT_{tf}.csv")
+        df.to_csv(f"data/ETHUSDT_{tf}.csv")
         print(f"  SUCCESS: {tf} from {exch}: {len(df)} bars")
     else:
         print(f"  FAILED: {tf}")

@@ -103,17 +103,10 @@ logger.propagate = False
 
 
 def load_evolution_data():
-    """加载进化所需的多时间周期数据（优先 pkl 缓存，fallback CSV，再降频补全）"""
+    """加载进化所需的多时间周期数据（CSV，再降频补全）"""
     data = {}
 
-    # pkl 本地数据（列名已是小写，索引已是 DatetimeIndex）
-    pkl_map = {
-        "D1": "data/binance_ETH_USDT_1d_730d.pkl",
-        "H4": "data/binance_ETH_USDT_4h_730d.pkl",
-        "H1": "data/binance_ETH_USDT_1h_730d.pkl",
-    }
-
-    # CSV 备选（注意：实际文件名为 ETHUSDT_4h.csv，无下划线）
+    # CSV 数据文件（由 fetch_data.py 下载）
     csv_map = {
         "D1": "data/ETHUSDT_1d.csv",
         "H4": "data/ETHUSDT_4h.csv",
@@ -131,25 +124,11 @@ def load_evolution_data():
         "Open_time": "open_time",
     }
 
-    # 优先加载 pkl
-    for tf, pkl_path in pkl_map.items():
-        if os.path.exists(pkl_path):
-            import pickle
-
-            with open(pkl_path, "rb") as f:
-                df = pickle.load(f)
-            data[tf] = df
-            logger.info(
-                f"Loaded {tf} from pkl: {len(df)} bars ({df.index[0]} ~ {df.index[-1]})"
-            )
-
-    # pkl 缺失的时间框架从 CSV 补充
+    # 加载 CSV
     for tf, csv_path in csv_map.items():
-        if tf in data:
-            continue
         if os.path.exists(csv_path):
             df = pd.read_csv(csv_path, index_col=0, parse_dates=True)
-            # 归一化列名（CSV 列名是大写）
+            # 归一化列名（CSV 列名可能是大写）
             df = df.rename(columns=col_rename)
             # 只保留核心列
             core_cols = [
