@@ -97,12 +97,8 @@ class MutationOperator:
         Returns:
             变异方向：正数表示增加，负数表示减少，0表示中性
         """
-        # 尝试导入ErrorPattern
-        try:
-            from src.core.mistake_book import ErrorPattern
-        except ImportError:
-            # 如果无法导入，返回默认方向
-            return 0.0
+        # 导入ErrorPattern
+        from src.plugins.self_correction.mistake_book import ErrorPattern
 
         direction = 0.0
 
@@ -133,11 +129,8 @@ class MutationOperator:
         Returns:
             变异幅度
         """
-        # 尝试导入ErrorSeverity
-        try:
-            from src.core.mistake_book import ErrorSeverity
-        except ImportError:
-            severity = None
+        # 导入ErrorSeverity
+        from src.plugins.self_correction.mistake_book import ErrorSeverity
 
         base_magnitude = frequency * self.max_change
 

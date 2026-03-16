@@ -34,7 +34,7 @@ try:
         ErrorSeverity,
         ErrorPattern,
     )
-    from src.core.weight_variator import WeightVariator
+    from src.plugins.evolution.weight_variator_legacy import WeightVariator
     from src.plugins.self_correction.workflow import SelfCorrectionWorkflow
 except ImportError as e:
     print(f"导入模块失败: {e}")

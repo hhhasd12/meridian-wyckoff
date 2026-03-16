@@ -216,40 +216,58 @@ def check_src_modules(report: HealthReport):
         # ── backtest ──
         ("src.backtest.engine", True, ["BacktestEngine", "BacktestResult", "Trade"]),
         ("src.backtest.reporter", True, ["BacktestReporter"]),
-        # ── core ──
+        # ── core (migrated to plugins) ──
         (
-            "src.core.mistake_book",
+            "src.plugins.self_correction.mistake_book",
             True,
             ["MistakeBook", "MistakeType", "ErrorSeverity", "ErrorPattern"],
         ),
-        ("src.core.weight_variator", True, ["WeightVariator", "MutationType"]),
-        ("src.core.weight_variator_legacy", True, ["WeightVariator"]),
-        ("src.core.wfa_backtester", True, ["WFABacktester", "PerformanceMetric"]),
-        ("src.core.self_correction_workflow", True, ["SelfCorrectionWorkflow"]),
-        ("src.core.system_orchestrator", True, ["SystemOrchestrator"]),
+        (
+            "src.plugins.evolution.weight_variator_legacy",
+            True,
+            ["WeightVariator", "MutationType"],
+        ),
+        (
+            "src.plugins.evolution.wfa_backtester",
+            True,
+            ["WFABacktester", "PerformanceMetric"],
+        ),
+        ("src.plugins.self_correction.workflow", True, ["SelfCorrectionWorkflow"]),
+        (
+            "src.plugins.orchestrator.system_orchestrator_legacy",
+            True,
+            ["SystemOrchestrator"],
+        ),
         ("src.plugins.market_regime.detector", True, ["RegimeDetector"]),
-        ("src.core.market_regime", True, ["RegimeDetector"]),
-        ("src.core.period_weight_filter", True, ["PeriodWeightFilter"]),
-        ("src.core.conflict_resolver", True, ["ConflictResolutionManager"]),
-        ("src.core.breakout_validator", True, []),
-        ("src.core.micro_entry_validator", True, []),
-        ("src.core.performance_monitor", True, []),
-        ("src.core.evolution_archivist", True, ["EvolutionArchivist"]),
-        ("src.core.circuit_breaker", True, []),
-        ("src.core.data_sanitizer", True, []),
-        ("src.core.data_pipeline", True, []),
-        ("src.core.config_system", True, []),
-        ("src.core.curve_boundary", False, []),
-        # wyckoff state machine 子包
-        ("src.core.wyckoff_state_machine.state_definitions", True, []),
-        ("src.core.wyckoff_state_machine.evidence_chain", True, []),
-        # evolution 子包
-        ("src.core.evolution.operators", False, []),
-        # orchestrator 子包
-        ("src.core.orchestrator.config", True, []),
-        ("src.core.orchestrator.health", True, []),
-        ("src.core.orchestrator.registry", True, []),
-        ("src.core.orchestrator.flow", True, []),
+        (
+            "src.plugins.weight_system.period_weight_filter",
+            True,
+            ["PeriodWeightFilter"],
+        ),
+        (
+            "src.plugins.signal_validation.conflict_resolver",
+            True,
+            ["ConflictResolutionManager"],
+        ),
+        ("src.plugins.signal_validation.breakout_validator", True, []),
+        ("src.plugins.signal_validation.micro_entry_validator", True, []),
+        ("src.plugins.dashboard.performance_monitor", True, []),
+        ("src.plugins.evolution.archivist", True, ["EvolutionArchivist"]),
+        ("src.plugins.risk_management.circuit_breaker", True, []),
+        ("src.plugins.data_pipeline.data_sanitizer", True, []),
+        ("src.plugins.data_pipeline.data_pipeline", True, []),
+        ("src.plugins.orchestrator.config_types", True, []),
+        ("src.plugins.pattern_detection.curve_boundary", False, []),
+        # wyckoff state machine
+        ("src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy", True, []),
+        ("src.plugins.wyckoff_state_machine.evidence_chain", True, []),
+        # evolution
+        ("src.plugins.evolution.operators", False, []),
+        # orchestrator
+        ("src.plugins.orchestrator.config", True, []),
+        ("src.plugins.orchestrator.health", True, []),
+        ("src.plugins.orchestrator.registry", True, []),
+        ("src.plugins.orchestrator.flow", True, []),
         # ── perception ──
         ("src.perception.candle_physical", False, []),
         ("src.perception.fvg_detector", False, []),
@@ -413,10 +431,10 @@ def check_e2e_import_chain(report: HealthReport):
     """
     chain = [
         ("src.data.loader", "DataLoader"),
-        ("src.core.self_correction_workflow", "SelfCorrectionWorkflow"),
-        ("src.core.mistake_book", "MistakeBook"),
-        ("src.core.weight_variator", "WeightVariator"),
-        ("src.core.wfa_backtester", "WFABacktester"),
+        ("src.plugins.self_correction.workflow", "SelfCorrectionWorkflow"),
+        ("src.plugins.self_correction.mistake_book", "MistakeBook"),
+        ("src.plugins.evolution.weight_variator_legacy", "WeightVariator"),
+        ("src.plugins.evolution.wfa_backtester", "WFABacktester"),
         ("src.backtest.engine", "BacktestEngine"),
     ]
 

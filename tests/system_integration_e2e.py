@@ -29,7 +29,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 # 导入核心模块
 try:
-    from src.plugins.data_pipeline.data_pipeline import DataPipeline, DataRequest, Timeframe, DataSource
+    from src.plugins.data_pipeline.data_pipeline import (
+        DataPipeline,
+        DataRequest,
+        Timeframe,
+        DataSource,
+    )
     from src.plugins.data_pipeline.data_sanitizer import (
         DataSanitizer,
         DataSanitizerConfig,
@@ -44,14 +49,16 @@ try:
     from src.plugins.risk_management.anomaly_validator import AnomalyValidator
     from src.plugins.risk_management.circuit_breaker import CircuitBreaker
     from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
-    from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager
-    from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
-    from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
-    from src.core.system_orchestrator import (
-        SystemOrchestrator,
-        SystemMode,
-        TradingSignal,
+    from src.plugins.signal_validation.conflict_resolver import (
+        ConflictResolutionManager,
     )
+    from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
+    from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
+        EnhancedWyckoffStateMachine,
+    )
+    from src.kernel.types import StateConfig
+    from src.plugins.orchestrator.system_orchestrator_legacy import SystemOrchestrator
+    from src.kernel.types import SystemMode, TradingSignal
     from src.perception.fvg_detector import FVGDetector
     from src.perception.candle_physical import create_candle_from_dataframe_row
     from src.perception.pin_body_analyzer import (

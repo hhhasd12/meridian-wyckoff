@@ -77,12 +77,12 @@ from src.plugins.self_correction.mistake_book import (
     ErrorSeverity,
     ErrorPattern,
 )
-from src.core.weight_variator import WeightVariator  # legacy，暂无插件版本
+from src.plugins.evolution.weight_variator_legacy import WeightVariator
 from src.plugins.evolution.wfa_backtester import WFABacktester, PerformanceMetric
 from src.backtest.engine import BacktestEngine
-from src.core.wyckoff_state_machine import (
+from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
     WyckoffStateMachine,
-)  # legacy，暂无独立插件实现
+)
 from src.plugins.market_regime.detector import RegimeDetector
 from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
 

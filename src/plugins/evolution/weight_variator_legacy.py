@@ -35,11 +35,7 @@ logger = logging.getLogger(__name__)
 from src.kernel.types import MutationType
 
 # 导入错题本模块
-try:
-    from .mistake_book import ErrorPattern, ErrorSeverity, MistakeBook
-except ImportError:
-    # 备用导入（如果错题本不在同一目录）
-    from mistake_book import ErrorPattern, ErrorSeverity, MistakeBook
+from src.plugins.self_correction.mistake_book import ErrorPattern, ErrorSeverity, MistakeBook
 
 
 class MutationOperator:

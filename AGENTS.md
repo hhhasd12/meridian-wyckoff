@@ -31,7 +31,7 @@ src/
 │   ├── exchange_connector/# 交易所连接器
 │   ├── dashboard/         # Web 仪表盘
 │   └── self_correction/   # 自我纠错
-├── core/            # 兼容层（已废弃，保留向后兼容）
+├── core/            # 已删除（v2.1 — legacy 实现已迁移至 plugins/）
 └── utils/           # 工具层
 ```
 
@@ -331,7 +331,7 @@ mypy src/
 
 - **内核层**（`src/kernel/`）不依赖任何插件，是系统基础
 - **插件层**（`src/plugins/`）只依赖内核层，插件间通过事件总线通信
-- **兼容层**（`src/core/`）已废弃，仅保留向后兼容的 shim 导入
+- **兼容层**（`src/core/`）已删除（v2.1），所有实现已迁移至 `src/plugins/`
 - 打破循环依赖，使用事件总线或回调
 - 新功能优先以**插件**形式开发，参考 `docs/PLUGIN_DEVELOPMENT.md`
 - 保持模块职责单一，避免上帝对象

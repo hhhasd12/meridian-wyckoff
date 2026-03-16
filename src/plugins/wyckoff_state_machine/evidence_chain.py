@@ -15,7 +15,7 @@ from typing import Any, Callable
 
 import numpy as np
 
-from .state_definitions import StateEvidence
+from src.kernel.types import StateEvidence
 
 logger = logging.getLogger(__name__)
 

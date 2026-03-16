@@ -10,13 +10,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
-from src.core.system_orchestrator import (
+from src.plugins.orchestrator.system_orchestrator_legacy import (
     SystemOrchestrator,
+)
+from src.kernel.types import (
     SystemMode,
     TradingSignal,
     WyckoffSignal,
     DecisionContext,
 )
+
 
 class TestSystemMode:
     """测试系统运行模式枚举"""
@@ -105,8 +108,8 @@ class TestSystemOrchestrator:
             "timeframes": ["1h", "4h"],
         }
 
-    @patch("src.core.system_orchestrator.DataPipeline")
-    @patch("src.core.system_orchestrator.RegimeDetector")
+    @patch("src.plugins.orchestrator.system_orchestrator_legacy.DataPipeline")
+    @patch("src.plugins.orchestrator.system_orchestrator_legacy.RegimeDetector")
     def test_initialization(self, mock_regime, mock_pipeline):
         """测试初始化"""
         orchestrator = SystemOrchestrator(config=self.config)
@@ -115,8 +118,8 @@ class TestSystemOrchestrator:
         assert hasattr(orchestrator, "config")
         assert orchestrator.mode == SystemMode.PAPER_TRADING
 
-    @patch("src.core.system_orchestrator.DataPipeline")
-    @patch("src.core.system_orchestrator.RegimeDetector")
+    @patch("src.plugins.orchestrator.system_orchestrator_legacy.DataPipeline")
+    @patch("src.plugins.orchestrator.system_orchestrator_legacy.RegimeDetector")
     def test_initialization_with_custom_config(self, mock_regime, mock_pipeline):
         """测试自定义配置初始化"""
         custom_config = {
@@ -136,8 +139,8 @@ class TestSystemOrchestrator:
         config = {
             "symbols": ["BTC/USDT"],
         }  # 不提供 mode，使用默认值 "paper"
-        with patch("src.core.system_orchestrator.DataPipeline"):
-            with patch("src.core.system_orchestrator.RegimeDetector"):
+        with patch("src.plugins.orchestrator.system_orchestrator_legacy.DataPipeline"):
+            with patch("src.plugins.orchestrator.system_orchestrator_legacy.RegimeDetector"):
                 orchestrator = SystemOrchestrator(config=config)
                 assert orchestrator.mode == SystemMode.PAPER_TRADING
 
@@ -153,13 +156,15 @@ class TestSystemOrchestratorDataProcessing:
             "timeframes": ["1h"],
         }
 
-    @patch("src.core.system_orchestrator.DataPipeline")
-    @patch("src.core.system_orchestrator.RegimeDetector")
-    @patch("src.core.system_orchestrator.EnhancedWyckoffStateMachine")
+    @patch("src.plugins.orchestrator.system_orchestrator_legacy.DataPipeline")
+    @patch("src.plugins.orchestrator.system_orchestrator_legacy.RegimeDetector")
+    @patch("src.plugins.orchestrator.system_orchestrator_legacy.EnhancedWyckoffStateMachine")
     def test_process_data_point_basic(self, mock_sm, mock_regime, mock_pipeline):
         """测试基本数据点处理"""
         mock_pipeline_instance = MagicMock()
-        mock_pipeline_instance.fetch_latest_data.return_value = self._create_sample_data()
+        mock_pipeline_instance.fetch_latest_data.return_value = (
+            self._create_sample_data()
+        )
         mock_pipeline.return_value = mock_pipeline_instance
 
         mock_regime_instance = MagicMock()

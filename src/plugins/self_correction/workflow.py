@@ -38,7 +38,7 @@ except ImportError:
     MistakeType = None
 
 try:
-    from src.core.weight_variator import WeightVariator  # legacy，暂无插件版本
+    from src.plugins.evolution.weight_variator_legacy import WeightVariator  # legacy，暂无插件版本
     from src.kernel.types import MutationType
 except ImportError:
     WeightVariator = None

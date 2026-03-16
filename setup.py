@@ -412,9 +412,12 @@ advanced:
         sys.path.insert(0, str(self.project_root))
 
         project_modules = [
-            ("市场体制模块", "src.core.market_regime"),
-            ("威科夫状态机", "src.core.wyckoff_state_machine"),
-            ("系统协调器", "src.core.system_orchestrator"),
+            ("市场体制模块", "src.plugins.market_regime.detector"),
+            (
+                "威科夫状态机",
+                "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy",
+            ),
+            ("系统协调器", "src.plugins.orchestrator.system_orchestrator_legacy"),
         ]
 
         for name, module_path in project_modules:

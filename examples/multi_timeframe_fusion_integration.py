@@ -20,7 +20,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter, Timeframe
 from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager, ConflictType
 from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
-from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
+from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import EnhancedWyckoffStateMachine
+from src.kernel.types import StateConfig
 from src.plugins.market_regime.detector import RegimeDetector, MarketRegime
 
 

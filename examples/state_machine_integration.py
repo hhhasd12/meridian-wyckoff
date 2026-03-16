@@ -12,7 +12,8 @@ from datetime import datetime, timedelta
 # 添加项目路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
+from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import EnhancedWyckoffStateMachine
+from src.kernel.types import StateConfig
 from src.plugins.data_pipeline.data_pipeline import DataPipeline
 from src.plugins.pattern_detection.tr_detector import TRDetector
 from src.plugins.market_regime.detector import RegimeDetector

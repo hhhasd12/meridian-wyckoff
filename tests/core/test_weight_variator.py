@@ -9,14 +9,19 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import pytest
 import numpy as np
-from src.core.weight_variator import (
+from src.plugins.evolution.weight_variator_legacy import (
     WeightVariator,
-    MutationType,
     MutationOperator,
     ThresholdMutationOperator,
     WeightMutationOperator,
 )
-from src.plugins.self_correction.mistake_book import MistakeBook, MistakeType, ErrorPattern, ErrorSeverity
+from src.kernel.types import MutationType
+from src.plugins.self_correction.mistake_book import (
+    MistakeBook,
+    MistakeType,
+    ErrorPattern,
+    ErrorSeverity,
+)
 
 
 class TestWeightVariator:

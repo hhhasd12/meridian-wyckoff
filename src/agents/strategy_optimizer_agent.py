@@ -187,10 +187,10 @@ class MultiTimeframeStateMachineRunner:
 
     def initialize_state_machines(self) -> None:
         """初始化所有时间周期的状态机"""
-        from src.core.wyckoff_state_machine import (
+        from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
             EnhancedWyckoffStateMachine,
-            StateConfig,
-        )  # legacy
+        )
+        from src.kernel.types import StateConfig  # legacy
         from src.plugins.wyckoff_state_machine.context_builder import (
             WyckoffContextBuilder,
         )
@@ -271,11 +271,13 @@ class MultiTimeframePerformanceEvaluator:
             data: K线数据
             eval_bars: 评估K线数量，0表示使用全部数据
         """
-        from src.core.wyckoff_state_machine import (
+        from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
             EnhancedWyckoffStateMachine,
-            StateConfig,
         )
-        from src.plugins.wyckoff_state_machine.context_builder import WyckoffContextBuilder
+        from src.kernel.types import StateConfig
+        from src.plugins.wyckoff_state_machine.context_builder import (
+            WyckoffContextBuilder,
+        )
         from src.backtest.engine import BacktestEngine
 
         sm_config = StateConfig()
@@ -436,8 +438,13 @@ class MultiTimeframePerformanceEvaluator:
             market_regime: 市场体制
             eval_bars: 评估K线数量，0表示使用全部数据
         """
-        from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter, Timeframe
-        from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager
+        from src.plugins.weight_system.period_weight_filter import (
+            PeriodWeightFilter,
+            Timeframe,
+        )
+        from src.plugins.signal_validation.conflict_resolver import (
+            ConflictResolutionManager,
+        )
         from src.backtest.engine import BacktestEngine
 
         pwf_weights = {}
@@ -615,11 +622,13 @@ class MultiTimeframePerformanceEvaluator:
             data: K线数据
             fast_mode: 快速模式，只评估最近的数据
         """
-        from src.core.wyckoff_state_machine import (
+        from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
             EnhancedWyckoffStateMachine,
-            StateConfig,
         )
-        from src.plugins.wyckoff_state_machine.context_builder import WyckoffContextBuilder
+        from src.kernel.types import StateConfig
+        from src.plugins.wyckoff_state_machine.context_builder import (
+            WyckoffContextBuilder,
+        )
         from src.backtest.engine import BacktestEngine
 
         sm_config = StateConfig()
@@ -905,7 +914,7 @@ class StrategyOptimizerAgent(BaseAgent):
         super().initialize()
 
         from src.plugins.self_correction.mistake_book import MistakeBook
-        from src.core.weight_variator import WeightVariator
+        from src.plugins.evolution.weight_variator_legacy import WeightVariator
         from src.plugins.evolution.wfa_backtester import WFABacktester
         from src.plugins.self_correction.workflow import SelfCorrectionWorkflow
 
@@ -1178,7 +1187,10 @@ class StrategyOptimizerAgent(BaseAgent):
         target = task.get("target", "all")
         method = task.get("method", "genetic")
 
-        from src.core.weight_variator import WeightVariator, MutationType
+        from src.plugins.evolution.weight_variator_legacy import (
+            WeightVariator,
+            MutationType,
+        )
 
         current_weights = self._get_current_weights()
 

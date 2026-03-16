@@ -32,7 +32,7 @@ from src.plugins.signal_validation.breakout_validator import BreakoutValidator
 from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
 from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager, ConflictType
 from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
-from src.core.wyckoff_state_machine import WyckoffStateMachine
+from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import WyckoffStateMachine
 from src.plugins.self_correction.mistake_book import MistakeBook, MistakeType, ErrorSeverity
 from src.plugins.dashboard.performance_monitor import PerformanceMonitor, ModuleType
 

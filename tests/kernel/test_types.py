@@ -380,14 +380,18 @@ class TestCompatibilityImports:
     """测试从兼容层导入业务类型"""
 
     def test_import_from_system_orchestrator(self) -> None:
-        """验证从 src.core.system_orchestrator 导入业务类型"""
-        from src.core.system_orchestrator import (
+        """验证从 src.plugins.orchestrator 导入业务类型"""
+        from src.plugins.orchestrator.system_orchestrator_legacy import (
+            SystemOrchestrator,
+        )
+        from src.kernel.types import (
             DecisionContext as DC,
             SystemMode as SM,
             TradingDecision as TD,
             TradingSignal as TS,
             WyckoffSignal as WS,
         )
+
         # 确保是同一个类（从kernel导入）
         assert SM is SystemMode
         assert TS is TradingSignal
@@ -404,6 +408,7 @@ class TestCompatibilityImports:
             TradingSignal as TS,
             WyckoffSignal as WS,
         )
+
         assert SM is SystemMode
         assert TS is TradingSignal
         assert WS is WyckoffSignal

@@ -44,7 +44,7 @@ class WyckoffStateMachinePlugin(BasePlugin):
     def on_load(self) -> None:
         """加载插件，初始化状态机"""
         try:
-            from src.core.wyckoff_state_machine import (  # legacy 包装，暂无独立插件实现
+            from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
                 EnhancedWyckoffStateMachine,
                 WyckoffStateMachine,
             )

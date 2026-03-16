@@ -20,8 +20,8 @@ try:
     from src.plugins.risk_management.circuit_breaker import CircuitBreaker
     from src.plugins.pattern_detection.tr_detector import TRDetector, TRStatus, BreakoutDirection
     from src.plugins.signal_validation.breakout_validator import BreakoutValidator, BreakoutStatus
-    from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine
-    from src.core.system_orchestrator import SystemOrchestrator
+    from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import EnhancedWyckoffStateMachine
+    from src.plugins.orchestrator.system_orchestrator_legacy import SystemOrchestrator
     from src.plugins.orchestrator.config_types import create_default_config
 except ImportError:
     from core.data_sanitizer import DataSanitizer, RawCandle, HistoricalContext

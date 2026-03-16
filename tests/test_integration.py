@@ -10,7 +10,8 @@ import matplotlib
 matplotlib.use("Agg")  # 使用非交互式后端，避免弹窗
 
 # 导入系统协调器
-from src.core.system_orchestrator import SystemOrchestrator, SystemMode
+from src.plugins.orchestrator.system_orchestrator_legacy import SystemOrchestrator
+from src.kernel.types import SystemMode
 
 
 def create_test_config():

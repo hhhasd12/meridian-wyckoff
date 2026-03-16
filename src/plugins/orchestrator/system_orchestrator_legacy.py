@@ -39,30 +39,30 @@ from src.kernel.types import (
 )
 
 # 导入所有核心模块
-from .data_pipeline import DataPipeline
+from src.plugins.data_pipeline.data_pipeline import DataPipeline
 from src.plugins.market_regime.detector import RegimeDetector
 
 try:
-    from ..perception.fvg_detector import FVGDetector
+    from src.perception.fvg_detector import FVGDetector
 except ImportError:
     # 备用导入方式
     from perception.fvg_detector import FVGDetector
-from .anomaly_validator import AnomalyValidator
-from .breakout_validator import BreakoutValidator
-from .circuit_breaker import CircuitBreaker
-from .curve_boundary import CurveBoundaryFitter
+from src.plugins.risk_management.anomaly_validator import AnomalyValidator
+from src.plugins.signal_validation.breakout_validator import BreakoutValidator
+from src.plugins.risk_management.circuit_breaker import CircuitBreaker
+from src.plugins.pattern_detection.curve_boundary import CurveBoundaryFitter
 
 # 导入决策可视化模块
-from .decision_visualizer import DecisionVisualizer
-from .tr_detector import TRDetector
+from src.plugins.dashboard.decision_visualizer import DecisionVisualizer
+from src.plugins.pattern_detection.tr_detector import TRDetector
 
 # 新实现的模块
 try:
-    from ..perception.candle_physical import (
+    from src.perception.candle_physical import (
         CandlePhysical,
         create_candle_from_dataframe_row,
     )
-    from ..perception.pin_body_analyzer import (
+    from src.perception.pin_body_analyzer import (
         AnalysisContext,
         EffortResultType,
         MarketRegimeType,
@@ -80,25 +80,32 @@ except ImportError:
         analyze_pin_vs_body,
     )
 
-from .conflict_resolver import ConflictResolutionManager
-from .data_sanitizer import DataSanitizer, DataSanitizerConfig, MarketType
+from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager
+from src.plugins.data_pipeline.data_sanitizer import (
+    DataSanitizer,
+    DataSanitizerConfig,
+    MarketType,
+)
 
 # 导入进化档案员
-from .evolution_archivist import EvolutionArchivist, EvolutionEventType
-from .micro_entry_validator import MicroEntryValidator
+from src.plugins.evolution.archivist import EvolutionArchivist, EvolutionEventType
+from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
 
 # Note: AccumulationPhase, DistributionPhase, TradingRangeState, WyckoffSignal
 # are not directly exported from wyckoff_state_machine
 # Using string types instead
-from .mistake_book import MistakeBook
-from .performance_monitor import (
+from src.plugins.self_correction.mistake_book import MistakeBook
+from src.plugins.dashboard.performance_monitor import (
     ModuleType,
     PerformanceMonitor,
 )
-from .period_weight_filter import PeriodWeightFilter
-from .weight_variator import WeightVariator
-from .wfa_backtester import WFABacktester
-from .wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
+from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
+from src.plugins.evolution.weight_variator_legacy import WeightVariator
+from src.plugins.evolution.wfa_backtester import WFABacktester
+from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
+    EnhancedWyckoffStateMachine,
+)
+from src.kernel.types import StateConfig
 
 logger = logging.getLogger(__name__)
 
@@ -439,7 +446,9 @@ class SystemOrchestrator:
         # live 模式下不启动，避免抢占 IO 并干扰交易决策路径
         if self.mode in (SystemMode.EVOLUTION, SystemMode.PAPER):
             self.evolution_archivist.start()
-            logger.info(f"EvolutionArchivist backend thread started ({self.mode.value} mode)")
+            logger.info(
+                f"EvolutionArchivist backend thread started ({self.mode.value} mode)"
+            )
         else:
             logger.info(
                 f"EvolutionArchivist backend thread skipped in {self.mode.value} mode"
@@ -688,7 +697,7 @@ class SystemOrchestrator:
         # P0-C 修复: 调用 DataPipeline.align_timeframes 进行多周期节奏对齐（Rhythm Sync）
         # 大周期定方向，小周期定时机 — 将跨周期特征列合并到主时间框架数据
         try:
-            from .data_pipeline import Timeframe as PipelineTF
+            from src.plugins.data_pipeline.data_pipeline import Timeframe as PipelineTF
 
             # 将 orchestrator 字符串键映射到 DataPipeline Timeframe 枚举
             _tf_str_to_enum = {
@@ -718,7 +727,8 @@ class SystemOrchestrator:
                 if not aligned_df.empty and len(aligned_df) > 0:
                     validated_data[primary_tf_str] = aligned_df
                     extra_cols = [
-                        c for c in aligned_df.columns
+                        c
+                        for c in aligned_df.columns
                         if c not in ("open", "high", "low", "close", "volume")
                     ]
                     logger.info(
@@ -1019,8 +1029,16 @@ class SystemOrchestrator:
 
                 if tr_by_timeframe:
                     # 收集所有时间框架的支撑/阻力（含主时间框架）
-                    _all_supports = [v["support"] for v in tr_by_timeframe.values() if v["support"] is not None]
-                    _all_resistances = [v["resistance"] for v in tr_by_timeframe.values() if v["resistance"] is not None]
+                    _all_supports = [
+                        v["support"]
+                        for v in tr_by_timeframe.values()
+                        if v["support"] is not None
+                    ]
+                    _all_resistances = [
+                        v["resistance"]
+                        for v in tr_by_timeframe.values()
+                        if v["resistance"] is not None
+                    ]
                     _primary_tr = perception_results.get("trading_range", {})
                     if _primary_tr.get("support") is not None:
                         _all_supports.append(_primary_tr["support"])
@@ -1034,7 +1052,11 @@ class SystemOrchestrator:
                     # 支撑位共振：多周期支撑位相近（标准差/均值 < 5%）
                     if len(_all_supports) >= 2:
                         _support_mean = float(np.mean(_all_supports))
-                        _support_spread = float(np.std(_all_supports)) / _support_mean if _support_mean > 0 else 1.0
+                        _support_spread = (
+                            float(np.std(_all_supports)) / _support_mean
+                            if _support_mean > 0
+                            else 1.0
+                        )
                         if _support_spread < 0.05:
                             _resonance_support = _support_mean
                             _resonance_score += 0.5
@@ -1042,7 +1064,11 @@ class SystemOrchestrator:
                     # 阻力位共振：同理
                     if len(_all_resistances) >= 2:
                         _resistance_mean = float(np.mean(_all_resistances))
-                        _resistance_spread = float(np.std(_all_resistances)) / _resistance_mean if _resistance_mean > 0 else 1.0
+                        _resistance_spread = (
+                            float(np.std(_all_resistances)) / _resistance_mean
+                            if _resistance_mean > 0
+                            else 1.0
+                        )
                         if _resistance_spread < 0.05:
                             _resonance_resistance = _resistance_mean
                             _resonance_score += 0.5
@@ -1056,9 +1082,17 @@ class SystemOrchestrator:
                     }
 
                     # 共振强支撑/阻力追加到主TR结果，供下游感知层使用
-                    if _resonance_score >= 1.0 and _resonance_support is not None and _resonance_resistance is not None:
-                        perception_results["trading_range"]["resonance_support"] = _resonance_support
-                        perception_results["trading_range"]["resonance_resistance"] = _resonance_resistance
+                    if (
+                        _resonance_score >= 1.0
+                        and _resonance_support is not None
+                        and _resonance_resistance is not None
+                    ):
+                        perception_results["trading_range"]["resonance_support"] = (
+                            _resonance_support
+                        )
+                        perception_results["trading_range"]["resonance_resistance"] = (
+                            _resonance_resistance
+                        )
                         logger.info(
                             f"多周期TR完全共振: 支撑 {_resonance_support:.2f}, 阻力 {_resonance_resistance:.2f}"
                             f" (共振分: {_resonance_score:.1f}, 参与框架: {list(tr_by_timeframe.keys())})"
@@ -1227,7 +1261,8 @@ class SystemOrchestrator:
 
         # 1. 调用 PeriodWeightFilter 计算动态权重（基于市场体制）
         try:
-            from .period_weight_filter import Timeframe
+            from src.plugins.weight_system.period_weight_filter import Timeframe
+
             raw_weights = self.period_filter.get_weights(regime)
             # 转换为字符串键，只保留当前可用的时间框架
             available_tfs = set(data_dict.keys())
@@ -1239,7 +1274,9 @@ class SystemOrchestrator:
             # 归一化（只对可用周期）
             total_w = sum(timeframe_weights.values())
             if total_w > 0:
-                timeframe_weights = {k: v / total_w for k, v in timeframe_weights.items()}
+                timeframe_weights = {
+                    k: v / total_w for k, v in timeframe_weights.items()
+                }
             logger.info(f"周期权重（{regime}体制）: {timeframe_weights}")
         except Exception as e:
             logger.warning(f"PeriodWeightFilter调用失败，使用默认权重: {e}")
@@ -1279,14 +1316,21 @@ class SystemOrchestrator:
             state_label, tf_conf = _tf_trend_state(df)
             timeframe_states[tf] = {"state": state_label, "confidence": tf_conf}
 
-        logger.info(f"各时间框架状态: { {k: v['state'] for k, v in timeframe_states.items()} }")
+        logger.info(
+            f"各时间框架状态: { {k: v['state'] for k, v in timeframe_states.items()} }"
+        )
 
         # 3. 调用 ConflictResolutionManager 检测并解决冲突
         try:
             from datetime import datetime as _dt
+
             # 计算回调深度（用于冲突解决逻辑）
             _h4_candidate = data_dict.get("H4")
-            h4_df = _h4_candidate if (_h4_candidate is not None and not _h4_candidate.empty) else data_dict.get(next(iter(data_dict)))
+            h4_df = (
+                _h4_candidate
+                if (_h4_candidate is not None and not _h4_candidate.empty)
+                else data_dict.get(next(iter(data_dict)))
+            )
             correction_depth = 0.0
             volume_on_correction = "NORMAL"
             if h4_df is not None and len(h4_df) >= 10:
@@ -1300,8 +1344,10 @@ class SystemOrchestrator:
                 last_vol = float(recent["volume"].iloc[-1])
                 if avg_vol > 0:
                     vol_ratio = last_vol / avg_vol
-                    volume_on_correction = "LOW_VOLUME" if vol_ratio < 0.7 else (
-                        "HIGH_VOLUME" if vol_ratio > 1.5 else "NORMAL"
+                    volume_on_correction = (
+                        "LOW_VOLUME"
+                        if vol_ratio < 0.7
+                        else ("HIGH_VOLUME" if vol_ratio > 1.5 else "NORMAL")
                     )
 
             market_context = {
@@ -1316,7 +1362,9 @@ class SystemOrchestrator:
             conflict_type = conflict_resolution.get("conflict_type", "NO_CONFLICT")
             conflicts = [] if conflict_type == "NO_CONFLICT" else [conflict_resolution]
             resolved_decisions = [conflict_resolution]
-            logger.info(f"冲突检测结果: {conflict_type}, 偏向: {conflict_resolution.get('primary_bias')}")
+            logger.info(
+                f"冲突检测结果: {conflict_type}, 偏向: {conflict_resolution.get('primary_bias')}"
+            )
         except Exception as e:
             logger.warning(f"ConflictResolutionManager调用失败: {e}")
             conflicts = []
@@ -1329,8 +1377,12 @@ class SystemOrchestrator:
             m15_data = data_dict.get("M15")
             breakout_status = perception_results.get("breakout_status")
             # 判断是否有真实突破：direction 为 1（上涨突破）或 -1（下跌突破），且有 breakout_level
-            breakout_direction_int = breakout_status.get("direction") if breakout_status else None
-            breakout_level = breakout_status.get("breakout_level") if breakout_status else None
+            breakout_direction_int = (
+                breakout_status.get("direction") if breakout_status else None
+            )
+            breakout_level = (
+                breakout_status.get("breakout_level") if breakout_status else None
+            )
             has_valid_breakout = (
                 m15_data is not None
                 and len(m15_data) >= 10
@@ -1341,20 +1393,28 @@ class SystemOrchestrator:
             )
             if has_valid_breakout:
                 # 将 int direction 转为 MicroEntryValidator 期望的字符串方向
-                structure_direction = "RESISTANCE" if breakout_direction_int == 1 else "SUPPORT"
+                structure_direction = (
+                    "RESISTANCE" if breakout_direction_int == 1 else "SUPPORT"
+                )
                 # 结构类型：有突破强度较高时认为是 CREEK（溪流）突破；否则 PIVOT
                 breakout_strength = breakout_status.get("breakout_strength", 0.5)
                 structure_type = "CREEK" if breakout_strength >= 1.0 else "PIVOT"
                 # 置信度：基于成交量确认和突破强度
                 volume_conf = breakout_status.get("volume_confirmation", False)
-                confidence = min(0.95, 0.6 + breakout_strength * 0.1 + (0.1 if volume_conf else 0.0))
+                confidence = min(
+                    0.95, 0.6 + breakout_strength * 0.1 + (0.1 if volume_conf else 0.0)
+                )
                 h4_structure = {
                     "type": structure_type,
                     "price_level": float(breakout_level),
                     "direction": structure_direction,
                     "confidence": confidence,
                 }
-                macro_bias = resolved_decisions[0].get("primary_bias", "NEUTRAL") if resolved_decisions else "NEUTRAL"
+                macro_bias = (
+                    resolved_decisions[0].get("primary_bias", "NEUTRAL")
+                    if resolved_decisions
+                    else "NEUTRAL"
+                )
                 if hasattr(macro_bias, "value"):
                     macro_bias = macro_bias.value
                 elif not isinstance(macro_bias, str):
@@ -1367,9 +1427,14 @@ class SystemOrchestrator:
                     m15_data=m15_data,
                     m5_data=data_dict.get("M5"),
                     macro_bias=macro_bias,
-                    market_context={"regime": regime, "timestamp": _dt.now().isoformat()},
+                    market_context={
+                        "regime": regime,
+                        "timestamp": _dt.now().isoformat(),
+                    },
                 )
-                logger.info(f"微观入场验证: {entry_validation.get('signal_type')} (结构: {structure_type}, 方向: {structure_direction})")
+                logger.info(
+                    f"微观入场验证: {entry_validation.get('signal_type')} (结构: {structure_type}, 方向: {structure_direction})"
+                )
             else:
                 logger.debug("无有效突破结构，跳过MicroEntryValidator")
         except Exception as e:
@@ -1421,16 +1486,25 @@ class SystemOrchestrator:
             resistance_level = trading_range.get("resistance")
 
             # 计算 avg_volume_20 / atr_14 / trend_direction 供22个检测方法使用
-            _vol_20 = float(primary_data["volume"].rolling(20).mean().iloc[-1]) if len(primary_data) >= 20 else float(primary_data["volume"].mean()) if len(primary_data) > 0 else 1.0
+            _vol_20 = (
+                float(primary_data["volume"].rolling(20).mean().iloc[-1])
+                if len(primary_data) >= 20
+                else float(primary_data["volume"].mean())
+                if len(primary_data) > 0
+                else 1.0
+            )
             _high = primary_data["high"]
             _low = primary_data["low"]
             _close = primary_data["close"]
             if len(primary_data) >= 14:
-                _tr_s = pd.concat([
-                    _high - _low,
-                    (_high - _close.shift()).abs(),
-                    (_low - _close.shift()).abs()
-                ], axis=1).max(axis=1)
+                _tr_s = pd.concat(
+                    [
+                        _high - _low,
+                        (_high - _close.shift()).abs(),
+                        (_low - _close.shift()).abs(),
+                    ],
+                    axis=1,
+                ).max(axis=1)
                 _atr14 = float(_tr_s.rolling(14).mean().iloc[-1])
             else:
                 _atr14 = float((_high - _low).mean()) if len(primary_data) > 0 else 1.0
@@ -1438,14 +1512,20 @@ class SystemOrchestrator:
             # 趋势方向（用MA20/MA50交叉判断）
             if len(primary_data) >= 20:
                 _ma20 = float(_close.rolling(20).mean().iloc[-1])
-                _ma50 = float(_close.rolling(min(50, len(primary_data))).mean().iloc[-1])
+                _ma50 = float(
+                    _close.rolling(min(50, len(primary_data))).mean().iloc[-1]
+                )
                 _last_c = float(_close.iloc[-1])
                 if _ma20 > _ma50 and _last_c > _ma20:
                     _trend_dir = "UP"
-                    _trend_str = min(1.0, (_ma20 - _ma50) / _ma50 * 10) if _ma50 > 0 else 0.5
+                    _trend_str = (
+                        min(1.0, (_ma20 - _ma50) / _ma50 * 10) if _ma50 > 0 else 0.5
+                    )
                 elif _ma20 < _ma50 and _last_c < _ma20:
                     _trend_dir = "DOWN"
-                    _trend_str = min(1.0, (_ma50 - _ma20) / _ma50 * 10) if _ma50 > 0 else 0.5
+                    _trend_str = (
+                        min(1.0, (_ma50 - _ma20) / _ma50 * 10) if _ma50 > 0 else 0.5
+                    )
                 else:
                     _trend_dir = "SIDEWAYS"
                     _trend_str = 0.3
@@ -1465,7 +1545,7 @@ class SystemOrchestrator:
                 "trading_range": trading_range,
                 "support": support_level,
                 "resistance": resistance_level,
-                "support_level": support_level,   # detect_ps/sc/ar 使用的字段名
+                "support_level": support_level,  # detect_ps/sc/ar 使用的字段名
                 "resistance_level": resistance_level,
                 # 感知层信号
                 "fvg_signals": perception_results.get("fvg_signals", []),
@@ -1483,7 +1563,9 @@ class SystemOrchestrator:
                 "bc_high": _bc_high,
                 # SC状态上下文（供AR检测使用）
                 "has_sc": _sc_low is not None,
-                "sc_confidence": self.state_machine.state_confidences.get("SC", 0.0) if hasattr(self.state_machine, "state_confidences") else 0.0,
+                "sc_confidence": self.state_machine.state_confidences.get("SC", 0.0)
+                if hasattr(self.state_machine, "state_confidences")
+                else 0.0,
             }
 
             # P0-B 修复: 增量喂入状态机，只喂自上次以来的新K线
@@ -1491,7 +1573,9 @@ class SystemOrchestrator:
             if self.last_processed_candle_time is None:
                 # 首次运行：喂入最后100根作为初始化（仅此一次）
                 init_candles = (
-                    primary_data.iloc[-100:] if len(primary_data) >= 100 else primary_data
+                    primary_data.iloc[-100:]
+                    if len(primary_data) >= 100
+                    else primary_data
                 )
                 for i, candle in init_candles.iterrows():
                     self.state_machine.process_candle(candle, context)
@@ -1725,9 +1809,7 @@ class SystemOrchestrator:
                 ):
                     # 确认趋势向下（通过市场体制或价格趋势）
                     market_regime = perception_results["market_regime"]["regime"]
-                    perception_results["market_regime"][
-                        "confidence"
-                    ]
+                    perception_results["market_regime"]["confidence"]
 
                     # 如果市场体制为下跌或趋势向下，发出做空信号
                     if (
@@ -1799,7 +1881,11 @@ class SystemOrchestrator:
         # P1-B 修复：MistakeBook 从真实决策结果中学习
         # 当置信度低或多周期冲突严重时，记录为潜在错误供进化层分析
         try:
-            from .mistake_book import ErrorPattern, ErrorSeverity, MistakeType
+            from src.plugins.self_correction.mistake_book import (
+                ErrorPattern,
+                ErrorSeverity,
+                MistakeType,
+            )
 
             # 条件1：置信度过低（< 0.4）说明感知层与融合层不一致
             if confidence < 0.4:
@@ -1848,7 +1934,11 @@ class SystemOrchestrator:
             # 条件3：状态机置信度与最终决策信号方向不一致
             state_direction = state_results.get("state_direction", "")
             state_conf = state_results.get("state_confidence", 0.0)
-            if state_conf > 0.7 and signal in (TradingSignal.NEUTRAL,) and state_direction in ("ACCUMULATION", "DISTRIBUTION"):
+            if (
+                state_conf > 0.7
+                and signal in (TradingSignal.NEUTRAL,)
+                and state_direction in ("ACCUMULATION", "DISTRIBUTION")
+            ):
                 self.mistake_book.record_mistake(
                     mistake_type=MistakeType.STATE_MISJUDGMENT,
                     severity=ErrorSeverity.HIGH,
@@ -2048,9 +2138,7 @@ class SystemOrchestrator:
             elif signal in [TradingSignal.SELL, TradingSignal.STRONG_SELL]:
                 # 做空信号
                 if wyckoff_state == "LPSY":
-                    logger.info(
-                        "【多空决策】：趋势向下，检测到小级别 LPSY，建议开空。"
-                    )
+                    logger.info("【多空决策】：趋势向下，检测到小级别 LPSY，建议开空。")
                 else:
                     logger.info("【多空决策】：趋势向下，建议开空。")
             # 观望信号
@@ -2154,12 +2242,16 @@ class SystemOrchestrator:
 
         # 2. 计算性能分数（基于交易历史）
         performance_scores = self._calculate_performance_scores()
-        logger.info(f"Calculated performance scores for {len(performance_scores)} individuals")
+        logger.info(
+            f"Calculated performance scores for {len(performance_scores)} individuals"
+        )
 
         # 3. 使用 WeightVariator 进化种群
         if self.weight_variator.population:
             self.weight_variator.evolve_population(performance_scores)
-            logger.info(f"Population evolved, generation: {self.weight_variator.generation}")
+            logger.info(
+                f"Population evolved, generation: {self.weight_variator.generation}"
+            )
         else:
             logger.warning("WeightVariator population is empty, initializing...")
             self.weight_variator.initialize_population(self.config)
@@ -2179,7 +2271,7 @@ class SystemOrchestrator:
             try:
                 result = await self._validate_config_with_wfa(config)
                 validation_results.append(result)
-                
+
                 if result.get("score", 0) > best_score:
                     best_score = result["score"]
                     best_config = {
@@ -2191,9 +2283,9 @@ class SystemOrchestrator:
                 logger.warning(f"Config validation failed: {e}")
 
         # 6. 选择最佳配置并应用（如果优于当前配置）
-        current_score = getattr(self, '_current_performance_score', 0.0)
+        current_score = getattr(self, "_current_performance_score", 0.0)
         config_updated = False
-        
+
         if best_config and best_score > current_score:
             logger.info(
                 f"Applying new configuration with score: {best_score:.3f} "
@@ -2205,7 +2297,7 @@ class SystemOrchestrator:
             self.config.update(best_config.get("configuration", {}))
 
             self._update_module_configurations()
-            
+
             self._current_performance_score = best_score
             config_updated = True
         else:
@@ -2234,63 +2326,70 @@ class SystemOrchestrator:
 
     def _calculate_performance_scores(self) -> dict[int, float]:
         """计算个体性能分数
-        
+
         基于交易历史和错误模式计算每个个体的适应度
         """
         scores = {}
-        
+
         for i, individual in enumerate(self.weight_variator.population):
             score = 0.0
-            
-            if hasattr(self, 'decision_history') and self.decision_history:
+
+            if hasattr(self, "decision_history") and self.decision_history:
                 recent_decisions = self.decision_history[-20:]
-                wins = sum(1 for d in recent_decisions if d.signal in [
-                    TradingSignal.BUY, TradingSignal.STRONG_BUY
-                ] and d.confidence > 0.7)
+                wins = sum(
+                    1
+                    for d in recent_decisions
+                    if d.signal in [TradingSignal.BUY, TradingSignal.STRONG_BUY]
+                    and d.confidence > 0.7
+                )
                 total = len(recent_decisions)
                 if total > 0:
                     score += (wins / total) * 0.5
-            
-            if hasattr(self, 'trade_results'):
-                profitable = sum(1 for t in self.trade_results if t.get('pnl', 0) > 0)
+
+            if hasattr(self, "trade_results"):
+                profitable = sum(1 for t in self.trade_results if t.get("pnl", 0) > 0)
                 total_trades = len(self.trade_results)
                 if total_trades > 0:
                     score += (profitable / total_trades) * 0.5
-            
+
             if score == 0.0:
-                score = 0.5 + (hash(str(individual.get('config', {}))) % 100) / 200
-            
+                score = 0.5 + (hash(str(individual.get("config", {}))) % 100) / 200
+
             scores[i] = score
-        
+
         return scores
 
     async def _validate_config_with_wfa(self, config: dict[str, Any]) -> dict[str, Any]:
         """使用 WFA 回测验证配置
-        
+
         Args:
             config: 待验证的配置
-        
+
         Returns:
             验证结果，包含 score 等字段
         """
         score = 0.0
         details = {}
-        
+
         try:
-            if hasattr(self, 'wfa_backtester') and self.wfa_backtester:
+            if hasattr(self, "wfa_backtester") and self.wfa_backtester:
                 result = await self.wfa_backtester.run_backtest(config)
-                score = result.get('sharpe_ratio', 0) * 0.3 + \
-                       result.get('win_rate', 0) * 0.4 + \
-                       min(result.get('max_drawdown', 1) / 0.2, 1.0) * 0.3
+                score = (
+                    result.get("sharpe_ratio", 0) * 0.3
+                    + result.get("win_rate", 0) * 0.4
+                    + min(result.get("max_drawdown", 1) / 0.2, 1.0) * 0.3
+                )
                 details = result
             else:
                 score = 0.5 + (hash(str(config)) % 100) / 200
-                details = {"note": "WFA backtester not available, using heuristic score"}
+                details = {
+                    "note": "WFA backtester not available, using heuristic score"
+                }
         except Exception as e:
             logger.warning(f"WFA validation error: {e}")
             score = 0.3
             details = {"error": str(e)}
-        
+
         return {"score": max(0.0, min(1.0, score)), "details": details}
 
     def _record_evolution_logs(self, best_config: dict[str, Any]):
@@ -2670,7 +2769,6 @@ async def main_example():
 
     # 停止系统
     await orchestrator.stop()
-
 
 
 if __name__ == "__main__":

@@ -94,7 +94,7 @@ class EvolutionPlugin(BasePlugin):
         try:
             from src.plugins.self_correction.workflow import SelfCorrectionWorkflow
             from src.plugins.self_correction.mistake_book import MistakeBook
-            from src.core.weight_variator import WeightVariator  # legacy，暂无插件版本
+            from src.plugins.evolution.weight_variator_legacy import WeightVariator
             from src.plugins.evolution.wfa_backtester import WFABacktester
         except ImportError as e:
             logger.error("导入工作流组件失败: %s", e)

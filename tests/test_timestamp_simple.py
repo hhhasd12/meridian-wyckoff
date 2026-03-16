@@ -13,7 +13,7 @@ import os
 sys.path.insert(0, ".")
 sys.path.insert(0, "./src")
 
-from src.core.system_orchestrator import SystemOrchestrator
+from src.plugins.orchestrator.system_orchestrator_legacy import SystemOrchestrator
 
 
 def test_basic_conversion():

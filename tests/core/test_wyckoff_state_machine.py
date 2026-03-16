@@ -11,12 +11,14 @@ import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from src.core.wyckoff_state_machine import (
+from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
     WyckoffStateMachine,
     EnhancedWyckoffStateMachine,
+    EvidenceChainManager,
+)
+from src.kernel.types import (
     StateConfig,
     StateEvidence,
-    EvidenceChainManager,
     StateDirection,
     StateTransitionType,
 )

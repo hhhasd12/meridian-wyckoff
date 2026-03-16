@@ -13,7 +13,7 @@ import os
 sys.path.insert(0, ".")
 sys.path.insert(0, "./src")
 
-from src.core.system_orchestrator import SystemOrchestrator
+from src.plugins.orchestrator.system_orchestrator_legacy import SystemOrchestrator
 
 
 def test_timestamp_conversion():
@@ -91,6 +91,7 @@ def test_timestamp_conversion():
 
         # 调用验证和预处理方法（异步方法需要await）
         import asyncio
+
         validated_data = asyncio.get_event_loop().run_until_complete(
             orchestrator._validate_and_preprocess_data(symbol, timeframes, data_dict)
         )
