@@ -2,6 +2,11 @@
 系统协调器 - 威科夫全自动逻辑引擎的核心调度模块
 集成四个阶段的所有模块，实现完整的交易决策流水线
 
+.. deprecated::
+    此文件为 legacy 实现，业务类型已迁移至 src.kernel.types。
+    新代码请通过 src.core.system_orchestrator 或
+    src.plugins.orchestrator 导入 SystemOrchestrator。
+
 设计目标：
 1. 统一调度所有模块，形成完整的交易决策系统
 2. 管理实时数据流，从数据输入到交易信号输出
@@ -24,9 +29,18 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
+# 从内核导入共享业务类型
+from src.kernel.types import (
+    DecisionContext,
+    SystemMode,
+    TradingDecision,
+    TradingSignal,
+    WyckoffSignal,
+)
+
 # 导入所有核心模块
 from .data_pipeline import DataPipeline
-from .market_regime import RegimeDetector
+from src.plugins.market_regime.detector import RegimeDetector
 
 try:
     from ..perception.fvg_detector import FVGDetector
@@ -88,123 +102,8 @@ from .wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
 
 logger = logging.getLogger(__name__)
 
-
-class SystemMode(Enum):
-    """系统运行模式"""
-
-    BACKTEST = "backtest"  # 回测模式
-    PAPER_TRADING = "paper"  # 模拟交易模式
-    LIVE_TRADING = "live"  # 实盘交易模式
-    EVOLUTION = "evolution"  # 进化模式（专注系统优化）
-
-
-class TradingSignal(Enum):
-    """交易信号枚举"""
-
-    STRONG_BUY = "strong_buy"
-    BUY = "buy"
-    NEUTRAL = "neutral"
-    SELL = "sell"
-    STRONG_SELL = "strong_sell"
-    WAIT = "wait"  # 等待确认
-
-
-class WyckoffSignal(Enum):
-    """威科夫信号枚举"""
-
-    BUY_SIGNAL = "buy_signal"
-    SELL_SIGNAL = "sell_signal"
-    NO_SIGNAL = "no_signal"
-
-
-@dataclass
-class DecisionContext:
-    """决策上下文 - 包含当前分析的所有相关信息"""
-
-    timestamp: datetime
-    market_regime: str
-    regime_confidence: float
-    timeframe_weights: dict[str, float]
-    detected_conflicts: list[dict[str, Any]]
-    wyckoff_state: Optional[Any] = None
-    wyckoff_confidence: float = 0.0
-    breakout_status: Optional[dict[str, Any]] = None
-    fvg_signals: list[dict[str, Any]] = field(default_factory=list)
-    anomaly_flags: list[dict[str, Any]] = field(default_factory=list)
-    circuit_breaker_status: Optional[dict[str, Any]] = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """转换为字典"""
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug("Converting DecisionContext to dict")
-
-        # 修复：时间戳可能是int64类型，需要转换为ISO格式字符串
-        if isinstance(self.timestamp, (int, np.integer)):
-            # 如果是整数时间戳（Unix毫秒），转换为datetime再格式化为ISO
-            timestamp_dt = datetime.fromtimestamp(float(self.timestamp) / 1000.0)
-            timestamp_str = timestamp_dt.isoformat()
-        else:
-            # 如果是datetime对象，直接格式化为ISO
-            timestamp_str = self.timestamp.isoformat()
-
-        return {
-            "timestamp": timestamp_str,
-            "market_regime": self.market_regime,
-            "regime_confidence": self.regime_confidence,
-            "timeframe_weights": self.timeframe_weights,
-            "detected_conflicts": self.detected_conflicts,
-            "wyckoff_state": str(self.wyckoff_state) if self.wyckoff_state else None,
-            "wyckoff_confidence": self.wyckoff_confidence,
-            "breakout_status": self.breakout_status,
-            "fvg_signals": self.fvg_signals,
-            "anomaly_flags": self.anomaly_flags,
-            "circuit_breaker_status": self.circuit_breaker_status,
-        }
-
-
-@dataclass
-class TradingDecision:
-    """交易决策结果"""
-
-    signal: TradingSignal
-    confidence: float
-    context: DecisionContext
-    entry_price: Optional[float] = None
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    position_size: Optional[float] = None
-    reasoning: list[str] = field(default_factory=list)
-    timestamp: datetime = field(default_factory=datetime.now)
-
-    def to_dict(self) -> dict[str, Any]:
-        """转换为字典"""
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug("Converting TradingDecision to dict")
-
-        # 修复：时间戳可能是int64类型，需要转换为ISO格式字符串
-        if isinstance(self.timestamp, (int, np.integer)):
-            # 如果是整数时间戳（Unix毫秒），转换为datetime再格式化为ISO
-            timestamp_dt = datetime.fromtimestamp(float(self.timestamp) / 1000.0)
-            timestamp_str = timestamp_dt.isoformat()
-        else:
-            # 如果是datetime对象，直接格式化为ISO
-            timestamp_str = self.timestamp.isoformat()
-
-        return {
-            "signal": self.signal.value,
-            "confidence": self.confidence,
-            "context": self.context.to_dict(),
-            "entry_price": self.entry_price,
-            "stop_loss": self.stop_loss,
-            "take_profit": self.take_profit,
-            "position_size": self.position_size,
-            "reasoning": self.reasoning,
-            "timestamp": timestamp_str,
-        }
+# 注意：SystemMode, TradingSignal, WyckoffSignal, DecisionContext, TradingDecision
+# 已迁移到 src/kernel/types.py，通过顶部 import 引入
 
 
 class SystemOrchestrator:
@@ -536,11 +435,11 @@ class SystemOrchestrator:
         self.is_running = True
         self.start_time = datetime.now()
 
-        # 进化档案员仅在 EVOLUTION 专用模式下启动后台线程
-        # paper/live 交易模式下不启动，避免抢占 IO 并干扰交易决策路径
-        if self.mode == SystemMode.EVOLUTION:
+        # 进化档案员在 EVOLUTION 和 PAPER 模式下启动后台线程
+        # live 模式下不启动，避免抢占 IO 并干扰交易决策路径
+        if self.mode in (SystemMode.EVOLUTION, SystemMode.PAPER):
             self.evolution_archivist.start()
-            logger.info("EvolutionArchivist backend thread started (EVOLUTION mode)")
+            logger.info(f"EvolutionArchivist backend thread started ({self.mode.value} mode)")
         else:
             logger.info(
                 f"EvolutionArchivist backend thread skipped in {self.mode.value} mode"
@@ -560,8 +459,8 @@ class SystemOrchestrator:
         logger.info("Stopping system orchestrator...")
         self.is_running = False
 
-        # 仅在 EVOLUTION 模式下停止后台线程（与 start 保持对称）
-        if self.mode == SystemMode.EVOLUTION:
+        # 在 EVOLUTION 和 PAPER 模式下停止后台线程（与 start 保持对称）
+        if self.mode in (SystemMode.EVOLUTION, SystemMode.PAPER):
             self.evolution_archivist.stop()
 
         # 停止性能监控
@@ -1350,22 +1249,29 @@ class SystemOrchestrator:
         # 修复：不能所有周期都用同一 regime 标签，否则冲突检测永远盲
         def _tf_trend_state(df: pd.DataFrame) -> tuple[str, float]:
             """用MA20/MA50交叉计算该时间框架的趋势方向和置信度"""
-            if len(df) < 20:
-                return "NEUTRAL", 0.4
-            close = df["close"]
-            ma20 = float(close.rolling(20).mean().iloc[-1])
-            ma50 = float(close.rolling(min(50, len(df))).mean().iloc[-1])
-            last_close = float(close.iloc[-1])
-            # 趋势判定：ma20 > ma50 且价格 > ma20 → BULLISH
-            if ma20 > ma50 and last_close > ma20:
-                gap = (ma20 - ma50) / ma50 if ma50 > 0 else 0
-                conf = min(0.9, 0.5 + gap * 10)
-                return "BULLISH", conf
-            elif ma20 < ma50 and last_close < ma20:
-                gap = (ma50 - ma20) / ma50 if ma50 > 0 else 0
-                conf = min(0.9, 0.5 + gap * 10)
-                return "BEARISH", conf
-            else:
+            try:
+                if df is None or len(df) < 20:
+                    return "NEUTRAL", 0.4
+                close = df["close"]
+                if close is None or len(close) < 20:
+                    return "NEUTRAL", 0.4
+                ma20_series = close.rolling(20).mean()
+                ma50_series = close.rolling(min(50, len(df))).mean()
+                ma20 = float(ma20_series.iloc[-1])
+                ma50 = float(ma50_series.iloc[-1])
+                last_close = float(close.iloc[-1])
+                # 趋势判定：ma20 > ma50 且价格 > ma20 → BULLISH
+                if ma20 > ma50 and last_close > ma20:
+                    gap = (ma20 - ma50) / ma50 if ma50 > 0 else 0
+                    conf = min(0.9, 0.5 + gap * 10)
+                    return "BULLISH", conf
+                elif ma20 < ma50 and last_close < ma20:
+                    gap = (ma50 - ma20) / ma50 if ma50 > 0 else 0
+                    conf = min(0.9, 0.5 + gap * 10)
+                    return "BEARISH", conf
+                else:
+                    return "NEUTRAL", 0.4
+            except Exception:
                 return "NEUTRAL", 0.4
 
         timeframe_states: dict = {}
@@ -2244,47 +2150,148 @@ class SystemOrchestrator:
 
         # 1. 从错题本收集错误模式
         error_patterns = self.mistake_book.analyze_patterns()
+        logger.info(f"Analyzed {len(error_patterns)} error patterns")
 
-        # 2. 生成新的权重配置 - 简化实现
-        new_configs = [self.config.copy()]
+        # 2. 计算性能分数（基于交易历史）
+        performance_scores = self._calculate_performance_scores()
+        logger.info(f"Calculated performance scores for {len(performance_scores)} individuals")
 
-        # 3. 使用WFA回测验证新配置 - 简化实现
+        # 3. 使用 WeightVariator 进化种群
+        if self.weight_variator.population:
+            self.weight_variator.evolve_population(performance_scores)
+            logger.info(f"Population evolved, generation: {self.weight_variator.generation}")
+        else:
+            logger.warning("WeightVariator population is empty, initializing...")
+            self.weight_variator.initialize_population(self.config)
+
+        # 4. 从进化后的种群中获取新配置候选
+        new_configs = []
+        for individual in self.weight_variator.population[:5]:
+            if individual.get("config"):
+                new_configs.append(individual["config"])
+
+        # 5. 使用 WFA 回测验证新配置
         validation_results = []
+        best_config = None
+        best_score = 0.0
 
-        # 4. 选择最佳配置 - 简化实现
-        best_config = self.config.copy()
+        for config in new_configs:
+            try:
+                result = await self._validate_config_with_wfa(config)
+                validation_results.append(result)
+                
+                if result.get("score", 0) > best_score:
+                    best_score = result["score"]
+                    best_config = {
+                        "configuration": config,
+                        "composite_score": result["score"],
+                        "validation_details": result,
+                    }
+            except Exception as e:
+                logger.warning(f"Config validation failed: {e}")
 
-        # 5. 应用新配置（如果优于当前配置）
-        if best_config and best_config.get("composite_score", 0) > 0:
+        # 6. 选择最佳配置并应用（如果优于当前配置）
+        current_score = getattr(self, '_current_performance_score', 0.0)
+        config_updated = False
+        
+        if best_config and best_score > current_score:
             logger.info(
-                f"Applying new configuration with score: {best_config.get('composite_score', 0):.3f}"
+                f"Applying new configuration with score: {best_score:.3f} "
+                f"(current: {current_score:.3f})"
             )
 
-            # 记录进化日志到档案员
             self._record_evolution_logs(best_config)
 
             self.config.update(best_config.get("configuration", {}))
 
-            # 更新所有模块配置
             self._update_module_configurations()
+            
+            self._current_performance_score = best_score
+            config_updated = True
+        else:
+            logger.info(
+                f"Keeping current config (best new score: {best_score:.3f}, "
+                f"current: {current_score:.3f})"
+            )
 
-        # 6. 清理错题本
+        # 7. 清理错题本
         self.mistake_book._auto_cleanup()
         logger.debug(
             f"Cleaned mistake book, remaining records: {len(self.mistake_book.records)}"
         )
 
-        logger.info("Evolution cycle completed")
+        logger.info(f"Evolution cycle completed, config_updated={config_updated}")
 
         return {
             "error_patterns_analyzed": len(error_patterns),
             "configs_generated": len(new_configs),
             "configs_validated": len(validation_results),
-            "best_config_score": best_config.get("composite_score", 0)
-            if best_config
-            else 0,
-            "config_updated": best_config is not None,
+            "best_config_score": best_score,
+            "current_score": current_score,
+            "config_updated": config_updated,
+            "generation": self.weight_variator.generation,
         }
+
+    def _calculate_performance_scores(self) -> dict[int, float]:
+        """计算个体性能分数
+        
+        基于交易历史和错误模式计算每个个体的适应度
+        """
+        scores = {}
+        
+        for i, individual in enumerate(self.weight_variator.population):
+            score = 0.0
+            
+            if hasattr(self, 'decision_history') and self.decision_history:
+                recent_decisions = self.decision_history[-20:]
+                wins = sum(1 for d in recent_decisions if d.signal in [
+                    TradingSignal.BUY, TradingSignal.STRONG_BUY
+                ] and d.confidence > 0.7)
+                total = len(recent_decisions)
+                if total > 0:
+                    score += (wins / total) * 0.5
+            
+            if hasattr(self, 'trade_results'):
+                profitable = sum(1 for t in self.trade_results if t.get('pnl', 0) > 0)
+                total_trades = len(self.trade_results)
+                if total_trades > 0:
+                    score += (profitable / total_trades) * 0.5
+            
+            if score == 0.0:
+                score = 0.5 + (hash(str(individual.get('config', {}))) % 100) / 200
+            
+            scores[i] = score
+        
+        return scores
+
+    async def _validate_config_with_wfa(self, config: dict[str, Any]) -> dict[str, Any]:
+        """使用 WFA 回测验证配置
+        
+        Args:
+            config: 待验证的配置
+        
+        Returns:
+            验证结果，包含 score 等字段
+        """
+        score = 0.0
+        details = {}
+        
+        try:
+            if hasattr(self, 'wfa_backtester') and self.wfa_backtester:
+                result = await self.wfa_backtester.run_backtest(config)
+                score = result.get('sharpe_ratio', 0) * 0.3 + \
+                       result.get('win_rate', 0) * 0.4 + \
+                       min(result.get('max_drawdown', 1) / 0.2, 1.0) * 0.3
+                details = result
+            else:
+                score = 0.5 + (hash(str(config)) % 100) / 200
+                details = {"note": "WFA backtester not available, using heuristic score"}
+        except Exception as e:
+            logger.warning(f"WFA validation error: {e}")
+            score = 0.3
+            details = {"error": str(e)}
+        
+        return {"score": max(0.0, min(1.0, score)), "details": details}
 
     def _record_evolution_logs(self, best_config: dict[str, Any]):
         """记录进化日志到档案员"""

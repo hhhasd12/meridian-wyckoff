@@ -2,6 +2,11 @@
 权重变异算法模块
 基于错题本错误模式分析，实现智能权重变异算法，实现系统自动进化
 
+.. deprecated::
+    此文件为 legacy 实现，MutationType 已迁移至 src.kernel.types。
+    新代码请通过 src.core.weight_variator 或
+    src.plugins.weight_system 导入。
+
 设计原则：
 1. 针对性变异：基于错误模式（假阳性/假阴性/时机错误等）进行有针对性的变异
 2. 渐进调整：单次调整不超过5%，防止参数跳跃
@@ -17,12 +22,17 @@
 """
 
 import copy
+import hashlib
+import logging
 import random
 from datetime import datetime
-from enum import Enum
 from typing import Any, Optional
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
+
+from src.kernel.types import MutationType
 
 # 导入错题本模块
 try:
@@ -30,16 +40,6 @@ try:
 except ImportError:
     # 备用导入（如果错题本不在同一目录）
     from mistake_book import ErrorPattern, ErrorSeverity, MistakeBook
-
-
-class MutationType(Enum):
-    """变异类型枚举"""
-
-    THRESHOLD_ADJUSTMENT = "THRESHOLD_ADJUSTMENT"  # 阈值调整
-    WEIGHT_ADJUSTMENT = "WEIGHT_ADJUSTMENT"  # 权重调整
-    PARAMETER_TUNING = "PARAMETER_TUNING"  # 参数调优
-    STRUCTURAL_CHANGE = "STRUCTURAL_CHANGE"  # 结构性改变
-    COEFFICIENT_ADJUSTMENT = "COEFFICIENT_ADJUSTMENT"  # 系数调整
 
 
 class MutationOperator:
@@ -604,13 +604,69 @@ class WeightVariator:
         book = mistake_book
         self.mistake_book = book
 
-    def generate_initial_population(self, base_config: dict[str, Any]):
+    def generate_initial_population(
+        self, base_config: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         生成初始种群
 
+        如果已有种群（上一代进化结果），保留 top 20% 精英个体，
+        只重新生成剩余 80%，避免每轮从零开始导致优秀个体丢失。
+
         Args:
             base_config: 基础配置（将作为种群中的一个个体）
+
+        Returns:
+            种群列表
         """
+        # ---- P0-1 修复：保留已有种群中的精英个体 ----
+        if self.population:
+            # 按 fitness 降序排列，保留 top 20%
+            elite_count = max(1, int(self.population_size * 0.2))
+            sorted_pop = sorted(
+                self.population,
+                key=lambda x: x.get("fitness", 0.0),
+                reverse=True,
+            )
+            elites = sorted_pop[:elite_count]
+            logger.info(
+                "保留 %d 个精英个体（最佳 fitness=%.4f），"
+                "重新生成 %d 个新个体",
+                len(elites),
+                elites[0].get("fitness", 0.0),
+                self.population_size - len(elites),
+            )
+
+            # 重建种群：精英 + 新变异个体
+            self.population = []
+            for idx, elite in enumerate(elites):
+                elite_copy = copy.deepcopy(elite)
+                elite_copy["id"] = idx
+                self.population.append(elite_copy)
+
+            # 用精英个体的配置作为变异基础
+            for i in range(len(elites), self.population_size):
+                # 随机选择一个精英作为变异基础
+                parent = random.choice(elites)
+                mutated_config = self._mutate_configuration(
+                    parent["config"]
+                )
+                self.population.append(
+                    {
+                        "id": i,
+                        "config": mutated_config,
+                        "performance": 0.0,
+                        "fitness": 0.0,
+                        "generation": parent.get("generation", 0) + 1,
+                    }
+                )
+
+            return self.population
+
+        # ---- 首次调用：从零生成种群 ----
+        logger.info(
+            "首次生成种群，population_size=%d", self.population_size
+        )
         self.population = []
 
         # 将基础配置作为第一个个体
@@ -642,6 +698,121 @@ class WeightVariator:
         self.best_performance = 0.0
 
         return self.population
+
+    def evolve_from_existing(
+        self,
+        base_config: dict[str, Any],
+        weight_adjustments: Optional[list[dict[str, Any]]] = None,
+    ) -> list[dict[str, Any]]:
+        """从现有种群进化下一代（保留精英 + 交叉 + 变异）
+
+        Args:
+            base_config: 基础配置，用于回退
+            weight_adjustments: 来自错题本的权重调整建议，
+                用于偏置变异方向
+
+        Returns:
+            进化后的种群列表
+        """
+        if not self.population:
+            logger.info("种群为空，回退到 generate_initial_population")
+            return self.generate_initial_population(base_config)
+
+        # 按 fitness 降序排列
+        sorted_pop = sorted(
+            self.population,
+            key=lambda x: x.get("fitness", 0.0),
+            reverse=True,
+        )
+
+        elite_count = max(1, int(self.population_size * 0.2))
+        elites = sorted_pop[:elite_count]
+
+        new_population: list[dict[str, Any]] = []
+
+        # 1. 保留精英
+        for idx, elite in enumerate(elites):
+            elite_copy = copy.deepcopy(elite)
+            elite_copy["id"] = idx
+            new_population.append(elite_copy)
+
+        next_id = len(new_population)
+        current_gen = max(
+            (ind.get("generation", 0) for ind in self.population),
+            default=0,
+        ) + 1
+
+        # 2. 基于 weight_adjustments 偏置生成变异体
+        if weight_adjustments:
+            for adj in weight_adjustments[
+                : self.population_size - len(new_population)
+            ]:
+                parent = random.choice(elites)
+                mutated_config = self._mutate_configuration(
+                    parent["config"]
+                )
+                # 将 adjustment 作为偏置应用
+                self._apply_adjustment_bias(mutated_config, adj)
+                new_population.append(
+                    {
+                        "id": next_id,
+                        "config": mutated_config,
+                        "performance": 0.0,
+                        "fitness": 0.0,
+                        "generation": current_gen,
+                    }
+                )
+                next_id += 1
+
+        # 3. 填充剩余位置（交叉 + 变异）
+        while len(new_population) < self.population_size:
+            parent = random.choice(elites)
+            mutated_config = self._mutate_configuration(parent["config"])
+            new_population.append(
+                {
+                    "id": next_id,
+                    "config": mutated_config,
+                    "performance": 0.0,
+                    "fitness": 0.0,
+                    "generation": current_gen,
+                }
+            )
+            next_id += 1
+
+        self.population = new_population
+        logger.info(
+            "种群进化完成: generation=%d, elite=%d, total=%d",
+            current_gen,
+            elite_count,
+            len(self.population),
+        )
+        return self.population
+
+    def _apply_adjustment_bias(
+        self, config: dict[str, Any], adjustment: dict[str, Any]
+    ) -> None:
+        """将错题本的调整建议作为偏置应用到配置上
+
+        Args:
+            config: 待调整的配置
+            adjustment: 错题本的调整建议
+        """
+        module = adjustment.get("module", "")
+        adjustment_value = adjustment.get("adjustment_value", 0.0)
+        source_patterns = adjustment.get("source_patterns", [])
+
+        if "period_weight" in module.lower():
+            self._apply_period_weight_mutation(
+                config, adjustment_value, source_patterns
+            )
+        elif "threshold" in module.lower():
+            self._apply_threshold_mutation(
+                config, adjustment_value, source_patterns
+            )
+        elif "regime" in module.lower():
+            self._apply_regime_mutation(
+                config, adjustment_value, source_patterns
+            )
 
     def _mutate_configuration(self, config: dict[str, Any]) -> dict[str, Any]:
         """变异配置"""

@@ -5,9 +5,9 @@
 """
 
 # 导入所有从原始文件需要的类
+from src.kernel.types import MutationType
 from src.core.weight_variator_legacy import (
     MutationOperator,
-    MutationType,
     ThresholdMutationOperator,
     WeightMutationOperator,
     WeightVariator,

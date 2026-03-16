@@ -2,6 +2,11 @@
 威科夫状态机模块
 实现13个吸筹节点和9个派发节点的辩证状态转换逻辑
 
+.. deprecated::
+    此文件为 legacy 实现，数据类型已迁移至 src.kernel.types。
+    新代码请通过 src.core.wyckoff_state_machine 或
+    src.plugins.wyckoff_state_machine 导入。
+
 设计原则：
 1. 状态证据链加权而非硬编码规则
 2. 支持非线性跳转和状态重置
@@ -18,126 +23,17 @@ from typing import Any, Callable, Optional
 import numpy as np
 import pandas as pd
 
+from src.kernel.types import (
+    StateConfig,
+    StateDetectionResult,
+    StateDirection,
+    StateEvidence,
+    StatePath,
+    StateTransition,
+    StateTransitionType,
+)
+
 logger = logging.getLogger(__name__)
-
-
-class StateDirection(Enum):
-    """状态方向枚举"""
-
-    ACCUMULATION = "ACCUMULATION"  # 吸筹阶段
-    DISTRIBUTION = "DISTRIBUTION"  # 派发阶段
-    TRENDING = "TRENDING"  # 趋势阶段
-    IDLE = "IDLE"  # 空闲状态
-
-
-class StateTransitionType(Enum):
-    """状态转换类型枚举"""
-
-    LINEAR = "LINEAR"  # 线性转换（按标准顺序）
-    NONLINEAR = "NONLINEAR"  # 非线性跳转
-    RESET = "RESET"  # 状态重置
-    PARALLEL = "PARALLEL"  # 并行路径
-
-
-@dataclass
-class StateEvidence:
-    """状态证据"""
-
-    evidence_type: str  # 证据类型，如'volume_ratio', 'pin_strength', 'bounce_percent'等
-    value: float  # 证据值
-    confidence: float  # 证据置信度 0-1
-    weight: float  # 证据权重 0-1
-    description: str  # 证据描述
-
-
-@dataclass
-class StateDetectionResult:
-    """状态检测结果"""
-
-    state_name: str
-    confidence: float  # 总体置信度 0-1
-    intensity: float  # 状态强度 0-1
-    evidences: list[StateEvidence]  # 证据列表
-    heritage_score: float = 0.0  # 遗产分数
-    timestamp: Optional[datetime] = None  # 检测时间戳
-
-    def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now()
-
-
-@dataclass
-class StateTransition:
-    """状态转换记录"""
-
-    from_state: str
-    to_state: str
-    timestamp: datetime
-    confidence: float  # 转换置信度
-    transition_type: StateTransitionType
-    evidences: list[StateEvidence]  # 触发转换的证据
-    heritage_transfer: float = 0.0  # 遗产传递量
-
-
-@dataclass
-class StatePath:
-    """并行状态路径"""
-
-    path_id: str
-    states: list[str]  # 路径上的状态序列
-    current_state: str
-    confidence: float  # 路径置信度
-    age_bars: int = 0  # 路径年龄（K线数）
-    evidence_strength: float = 0.0  # 证据强度总和
-    heritage_score: float = 0.0  # 路径遗产分数
-
-    def add_state(self, state_name: str, confidence: float):
-        """添加状态到路径"""
-        self.states.append(state_name)
-        self.current_state = state_name
-        self.confidence = confidence
-
-    def increment_age(self):
-        """增加路径年龄"""
-        self.age_bars += 1
-
-
-class StateConfig:
-    """状态机配置"""
-
-    def __init__(self):
-        # 状态重置参数
-        self.SPRING_FAILURE_BARS = 5  # Spring失败判定所需K线数
-        self.STATE_TIMEOUT_BARS = 20  # 状态超时判定所需K线数
-
-        # 非线性检测参数
-        self.STATE_MIN_CONFIDENCE = 0.6  # 状态最小置信度
-        self.PATH_MAX_AGE_BARS = 10  # 路径最大年龄（K线数）
-        self.PATH_SELECTION_THRESHOLD = 0.65  # 路径选择阈值
-
-        # 状态切换滞后性参数（防止"精神分裂"）
-        self.STATE_SWITCH_HYSTERESIS = 0.15  # 15%相对优势才切换
-        self.DIRECTION_SWITCH_PENALTY = 0.3  # 吸筹←→派发方向切换惩罚
-
-        # 自动进化标识
-        self._evolution_params = [
-            "SPRING_FAILURE_BARS",
-            "STATE_TIMEOUT_BARS",
-            "STATE_MIN_CONFIDENCE",
-            "PATH_SELECTION_THRESHOLD",
-            "STATE_SWITCH_HYSTERESIS",
-            "DIRECTION_SWITCH_PENALTY",
-        ]
-
-    def to_dict(self) -> dict[str, Any]:
-        """转换为字典"""
-        return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
-
-    def update_from_dict(self, config_dict: dict[str, Any]):
-        """从字典更新配置"""
-        for key, value in config_dict.items():
-            if hasattr(self, key) and key in self._evolution_params:
-                setattr(self, key, value)
 
 
 class WyckoffStateMachine:
@@ -667,7 +563,10 @@ class WyckoffStateMachine:
             self.critical_price_levels.pop("SC_LOW", None)
 
         # 更新状态方向
-        if reset_info["new_base_state"] == "TREND_UP" or reset_info["new_base_state"] == "DOWNTREND":
+        if (
+            reset_info["new_base_state"] == "TREND_UP"
+            or reset_info["new_base_state"] == "DOWNTREND"
+        ):
             self.state_direction = StateDirection.TRENDING
         else:
             self.state_direction = StateDirection.IDLE
@@ -676,21 +575,46 @@ class WyckoffStateMachine:
         self, candle: pd.Series, context: dict[str, Any]
     ) -> list[dict]:
         """
-        非线性状态检测：允许从任何状态跳转到任何其他状态
+        非线性状态检测：使用新的WyckoffPhaseDetector
 
         Returns:
             潜在状态列表
         """
+        from src.plugins.pattern_detection.wyckoff_phase_detector import (
+            WyckoffPhaseDetector,
+        )
+
+        if not hasattr(self, "_phase_detector"):
+            self._phase_detector = WyckoffPhaseDetector()
+
+        detection_results = self._phase_detector.detect(
+            candle, context, self.current_state
+        )
+
         potential_states = []
 
-        # 独立检测每个状态的可能性（不依赖前驱状态）
+        for state_name, result in detection_results.items():
+            if result["confidence"] > self.config.STATE_MIN_CONFIDENCE:
+                state_info = self.all_states.get(state_name, {})
+                potential_states.append(
+                    {
+                        "state": state_name,
+                        "confidence": result["confidence"],
+                        "intensity": result["intensity"],
+                        "evidences": result.get("evidences", []),
+                        "direct_jump": True,
+                        "direction": state_info.get("direction", StateDirection.IDLE),
+                    }
+                )
+
         for state_name, state_info in self.all_states.items():
-            # 获取检测方法名称
+            if state_name in detection_results:
+                continue
+
             detection_method_name = state_info.get("detection_method")
             if not detection_method_name:
                 continue
 
-            # 尝试调用检测方法
             detection_method = getattr(self, detection_method_name, None)
             if detection_method:
                 try:
@@ -707,7 +631,6 @@ class WyckoffStateMachine:
                             }
                         )
                 except Exception:
-                    # 检测方法可能未完全实现，跳过
                     continue
 
         return potential_states
@@ -892,7 +815,6 @@ class WyckoffStateMachine:
         # 重置当前状态的超时计数器
         self.state_timeout_counters[to_state] = 0
 
-
     def _record_critical_price_levels(self, state: str, candle: pd.Series):
         """记录关键价格水平"""
         if state == "SC":
@@ -953,7 +875,6 @@ class WyckoffStateMachine:
             description=f"成交量比率: {volume_ratio:.2f}x (当前: {volume:.0f}, 平均: {avg_volume:.0f})",
         )
 
-
     def _analyze_price_action_for_sc(
         self, candle: pd.Series, context: dict[str, Any]
     ) -> Optional[StateEvidence]:
@@ -1007,7 +928,6 @@ class WyckoffStateMachine:
             description=f"价格行为评分: {price_score:.2f} (下跌强度: {bearish_strength:.2f}, 下影线: {lower_shadow_ratio:.2f}, 波动率: {volatility_ratio:.2f}x)",
         )
 
-
     def _analyze_context_for_sc(
         self, candle: pd.Series, context: dict[str, Any]
     ) -> Optional[StateEvidence]:
@@ -1053,7 +973,6 @@ class WyckoffStateMachine:
             description=f"市场上下文评分: {context_score:.2f} (体制: {market_regime}, 接近支撑: {support_score:.2f})",
         )
 
-
     def _analyze_trend_for_sc(
         self, candle: pd.Series, context: dict[str, Any]
     ) -> Optional[StateEvidence]:
@@ -1085,7 +1004,6 @@ class WyckoffStateMachine:
             weight=0.4,
             description=f"趋势对齐评分: {trend_score:.2f} (方向: {trend_direction}, 强度: {trend_strength:.2f})",
         )
-
 
     def detect_ps(self, candle: pd.Series, context: dict[str, Any]) -> dict[str, Any]:
         """检测初步支撑
@@ -1288,7 +1206,6 @@ class WyckoffStateMachine:
             description=f"成交量收缩比率: {sc_volume_ratio:.2f}x (SC成交量: {sc_volume:.0f}, AR成交量: {current_volume:.0f})",
         )
 
-
     def _analyze_bounce_for_ar(
         self, candle: pd.Series, context: dict[str, Any]
     ) -> Optional[StateEvidence]:
@@ -1351,7 +1268,6 @@ class WyckoffStateMachine:
             description=f"反弹强度: {bounce_score_final:.2f} (反弹幅度: {bounce_ratio:.1%}, SC低点: {sc_low:.2f}, 阳线: {is_bullish})",
         )
 
-
     def _analyze_context_for_ar(
         self, candle: pd.Series, context: dict[str, Any]
     ) -> Optional[StateEvidence]:
@@ -1391,7 +1307,6 @@ class WyckoffStateMachine:
             description=f"AR上下文评分: {context_score:.2f} (有SC: {has_sc}, SC置信度: {sc_confidence:.2f}, 市场体制: {market_regime})",
         )
 
-
     def _analyze_trend_for_ar(
         self, candle: pd.Series, context: dict[str, Any]
     ) -> Optional[StateEvidence]:
@@ -1426,7 +1341,6 @@ class WyckoffStateMachine:
             weight=0.4,
             description=f"AR趋势评分: {trend_score:.2f} (趋势方向: {trend_direction}, 趋势强度: {trend_strength:.2f})",
         )
-
 
     def detect_ar(self, candle: pd.Series, context: dict[str, Any]) -> dict[str, Any]:
         """检测自动反弹
@@ -1540,7 +1454,6 @@ class WyckoffStateMachine:
             description=f"ST成交量收缩比率: {ar_volume_ratio:.2f}x (AR成交量: {ar_volume:.0f}, ST成交量: {current_volume:.0f})",
         )
 
-
     def _analyze_retracement_for_st(
         self, candle: pd.Series, context: dict[str, Any]
     ) -> Optional[StateEvidence]:
@@ -1608,7 +1521,6 @@ class WyckoffStateMachine:
             description=f"ST回撤强度: {retracement_score_final:.2f} (回撤幅度: {retracement_ratio:.1%}, SC低点: {sc_low:.2f}, AR高点: {ar_high:.2f}, 高于SC: {above_sc})",
         )
 
-
     def _analyze_context_for_st(
         self, candle: pd.Series, context: dict[str, Any]
     ) -> Optional[StateEvidence]:
@@ -1647,7 +1559,6 @@ class WyckoffStateMachine:
             weight=0.5,
             description=f"ST上下文评分: {context_score:.2f} (有AR: {has_ar}, AR置信度: {ar_confidence:.2f}, 市场体制: {market_regime})",
         )
-
 
     def _analyze_support_for_st(
         self, candle: pd.Series, context: dict[str, Any]
@@ -1709,7 +1620,6 @@ class WyckoffStateMachine:
             weight=0.6,
             description=f"ST支撑强度: {support_score:.2f} (距离SC: {proximity_ratio:.1%}, SC低点: {sc_low:.2f}, 高于SC: {above_sc})",
         )
-
 
     def detect_st(self, candle: pd.Series, context: dict[str, Any]) -> dict[str, Any]:
         """检测二次测试
@@ -4139,7 +4049,6 @@ class EvidenceChainManager:
             ],
         }
 
-
     def get_evidence_report(self, state_name: str) -> dict[str, Any]:
         """获取证据报告"""
         if state_name not in self.evidence_chains:
@@ -4178,7 +4087,6 @@ class EvidenceChainManager:
         }
 
 
-
 # ===== 使用示例 =====
 
 if __name__ == "__main__":
@@ -4188,7 +4096,6 @@ if __name__ == "__main__":
 
     # 创建证据链管理器
     evidence_manager = EvidenceChainManager()
-
 
     # 测试状态机报告
     report = state_machine.get_state_report()

@@ -27,11 +27,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# 直接从原始文件导入（避免循环导入）
-# 保持向后兼容性 - 原始文件已重命名为 _legacy.py
-from ..wyckoff_state_machine_legacy import (
-    EnhancedWyckoffStateMachine,
-    EvidenceChainManager,
+# 数据类型从 kernel 导入（权威来源）
+from src.kernel.types import (
     StateConfig,
     StateDetectionResult,
     StateDirection,
@@ -39,6 +36,12 @@ from ..wyckoff_state_machine_legacy import (
     StatePath,
     StateTransition,
     StateTransitionType,
+)
+
+# 大类仍从 legacy 导入
+from ..wyckoff_state_machine_legacy import (
+    EnhancedWyckoffStateMachine,
+    EvidenceChainManager,
     WyckoffStateMachine,
 )
 

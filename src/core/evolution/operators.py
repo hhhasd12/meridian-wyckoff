@@ -11,8 +11,9 @@
 import logging
 import random
 from datetime import datetime
-from enum import Enum
 from typing import Any
+
+from src.kernel.types import MutationType
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +36,6 @@ def _setup_error_handler():
 
 
 error_handler = _setup_error_handler()
-
-
-class MutationType(Enum):
-    """变异类型枚举"""
-
-    THRESHOLD_ADJUSTMENT = "THRESHOLD_ADJUSTMENT"  # 阈值调整
-    WEIGHT_ADJUSTMENT = "WEIGHT_ADJUSTMENT"  # 权重调整
-    PARAMETER_TUNING = "PARAMETER_TUNING"  # 参数调优
-    STRUCTURAL_CHANGE = "STRUCTURAL_CHANGE"  # 结构性改变
-    COEFFICIENT_ADJUSTMENT = "COEFFICIENT_ADJUSTMENT"  # 系数调整
 
 
 class MutationOperator:

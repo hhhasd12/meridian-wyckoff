@@ -6,24 +6,28 @@
 已废弃: 请使用 src.core.orchestrator 导入
 """
 
-# 导入核心类 - 从legacy文件导入以保持枚举一致性
+# 导入核心类 - 业务类型从kernel导入（权威来源）
 # 重新导出原始文件中的类以支持测试的mock
 # 这些是原始system_orchestrator导入的模块
 from src.core.data_pipeline import DataPipeline, Timeframe
-from src.core.market_regime import RegimeDetector
+from src.plugins.market_regime.detector import RegimeDetector
 
 # 向后兼容导入 - 从orchestrator包导入
 from src.core.orchestrator import (
     AlertLevel,
     HealthStatus,
 )
-from src.core.system_orchestrator_legacy import (
+
+# 业务类型从kernel导入（权威来源），SystemOrchestrator仍从legacy导入
+from src.kernel.types import (
     DecisionContext,
     SystemMode,
-    SystemOrchestrator,
     TradingDecision,
     TradingSignal,
     WyckoffSignal,
+)
+from src.core.system_orchestrator_legacy import (
+    SystemOrchestrator,
 )
 
 try:
@@ -65,42 +69,6 @@ from src.core.wfa_backtester import PerformanceMetric, ValidationResult, WFABack
 
 # 从wyckoff_state_machine包导入
 from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
-
-# 为了向后兼容，同时导出
-DataPipeline = DataPipeline
-Timeframe = Timeframe
-RegimeDetector = RegimeDetector
-FVGDetector = FVGDetector if FVGDetector else None
-TRDetector = TRDetector
-CurveBoundaryFitter = CurveBoundaryFitter
-BreakoutValidator = BreakoutValidator
-AnomalyValidator = AnomalyValidator
-CircuitBreaker = CircuitBreaker
-DecisionVisualizer = DecisionVisualizer
-DataSanitizer = DataSanitizer
-DataSanitizerConfig = DataSanitizerConfig
-MarketType = MarketType
-PeriodWeightFilter = PeriodWeightFilter
-ConflictResolutionManager = ConflictResolutionManager
-ConflictType = ConflictType
-ResolutionBias = ResolutionBias
-MicroEntryValidator = MicroEntryValidator
-EnhancedWyckoffStateMachine = EnhancedWyckoffStateMachine
-StateConfig = StateConfig
-MistakeBook = MistakeBook
-MistakeType = MistakeType
-ErrorSeverity = ErrorSeverity
-ErrorPattern = ErrorPattern
-WeightVariator = WeightVariator
-WFABacktester = WFABacktester
-PerformanceMetric = PerformanceMetric
-ValidationResult = ValidationResult
-PerformanceMonitor = PerformanceMonitor
-ModuleType = ModuleType
-PMHealthStatus = PMHealthStatus
-PMAlertLevel = PMAlertLevel
-EvolutionArchivist = EvolutionArchivist
-EvolutionEventType = EvolutionEventType
 
 
 __all__ = [

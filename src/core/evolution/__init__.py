@@ -21,9 +21,9 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # 导入各模块
+from src.kernel.types import MutationType
 from .operators import (
     MutationOperator,
-    MutationType,
     ThresholdMutationOperator,
     WeightMutationOperator,
 )
