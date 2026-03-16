@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 try:
-    from src.core.tr_detector import TRDetector, TradingRange, TRStatus, BreakoutDirection
+    from src.plugins.pattern_detection.tr_detector import TRDetector, TradingRange, TRStatus, BreakoutDirection
 except ImportError:
     from core.tr_detector import TRDetector, TradingRange, TRStatus, BreakoutDirection
 
@@ -120,7 +120,7 @@ class TestTRDetector(unittest.TestCase):
 
     def test_calculate_tr_confidence(self):
         """测试TR置信度计算"""
-        from src.core.curve_boundary import BoundaryType
+        from src.plugins.pattern_detection.curve_boundary import BoundaryType
         tr_result = {
             "tr_confidence": 0.75,
             "boundary_distance": 5.0,

@@ -12,7 +12,7 @@ import unittest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from src.core.circuit_breaker import (
+from src.plugins.risk_management.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerStatus,
     TripReason,

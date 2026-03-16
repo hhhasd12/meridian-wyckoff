@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import pytest
 import numpy as np
-from src.core.period_weight_filter import PeriodWeightFilter, Timeframe
+from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter, Timeframe
 
 
 class TestPeriodWeightFilter:
@@ -19,7 +19,7 @@ class TestPeriodWeightFilter:
         """测试初始化"""
         filter = PeriodWeightFilter()
         assert filter is not None
-        assert len(filter.weights) == 6  # 6个时间框架
+        assert len(filter.weights) == 7  # 7个时间框架（W/D/H8/H4/H1/M15/M5）
         assert filter.normalize is True
         assert filter.min_weight == 0.05
 
@@ -34,13 +34,14 @@ class TestPeriodWeightFilter:
         """测试时间框架枚举"""
         assert Timeframe.WEEKLY.value == "W"
         assert Timeframe.DAILY.value == "D"
+        assert Timeframe.H8.value == "H8"
         assert Timeframe.H4.value == "H4"
         assert Timeframe.H1.value == "H1"
         assert Timeframe.M15.value == "M15"
         assert Timeframe.M5.value == "M5"
 
         all_tfs = Timeframe.get_all()
-        assert len(all_tfs) == 6
+        assert len(all_tfs) == 7
         assert all_tfs[0] == Timeframe.WEEKLY
         assert all_tfs[-1] == Timeframe.M5
 
@@ -48,6 +49,7 @@ class TestPeriodWeightFilter:
         """测试字符串转换"""
         assert Timeframe.from_string("W") == Timeframe.WEEKLY
         assert Timeframe.from_string("D") == Timeframe.DAILY
+        assert Timeframe.from_string("H8") == Timeframe.H8
         assert Timeframe.from_string("H4") == Timeframe.H4
         assert Timeframe.from_string("H1") == Timeframe.H1
         assert Timeframe.from_string("M15") == Timeframe.M15
@@ -90,6 +92,7 @@ class TestPeriodWeightFilter:
         timeframe_scores = {
             "W": 0.8,
             "D": 0.6,
+            "H8": 0.5,
             "H4": 0.4,
             "H1": 0.5,
             "M15": 0.7,
@@ -142,6 +145,7 @@ class TestPeriodWeightFilter:
         timeframe_decisions = {
             "W": {"state": "BULLISH", "confidence": 0.8},
             "D": {"state": "BULLISH", "confidence": 0.7},
+            "H8": {"state": "BULLISH", "confidence": 0.6},
             "H4": {"state": "NEUTRAL", "confidence": 0.5},
             "H1": {"state": "BULLISH", "confidence": 0.6},
             "M15": {"state": "BULLISH", "confidence": 0.9},
@@ -158,7 +162,7 @@ class TestPeriodWeightFilter:
 
         assert decision["regime"] == "TRENDING"
         assert 0.0 <= decision["confidence"] <= 1.0
-        assert len(decision["timeframe_contributions"]) == 6
+        assert len(decision["timeframe_contributions"]) == 7
 
     def test_get_weighted_decision_conflict(self):
         """测试冲突场景的加权决策"""
@@ -168,6 +172,7 @@ class TestPeriodWeightFilter:
         conflicting_decisions = {
             "W": {"state": "BULLISH", "confidence": 0.8},
             "D": {"state": "BEARISH", "confidence": 0.7},
+            "H8": {"state": "BULLISH", "confidence": 0.5},
             "H4": {"state": "BULLISH", "confidence": 0.6},
             "H1": {"state": "BEARISH", "confidence": 0.5},
             "M15": {"state": "BULLISH", "confidence": 0.9},
@@ -182,7 +187,7 @@ class TestPeriodWeightFilter:
 
         # 应有时框架贡献度
         contributions = decision["timeframe_contributions"]
-        assert len(contributions) == 6
+        assert len(contributions) == 7
         for tf, contrib in contributions.items():
             assert "weight" in contrib
             assert "state" in contrib
@@ -195,7 +200,7 @@ class TestPeriodWeightFilter:
 
         # 趋势市看涨偏向
         recommendations = filter.recommend_timeframe_focus("TRENDING", "BULLISH")
-        assert len(recommendations) == 6
+        assert len(recommendations) == 7
 
         # 应按时框架权重降序排列
         weights = [w for _, w in recommendations]
@@ -211,6 +216,7 @@ class TestPeriodWeightFilter:
             "weights": {
                 "W": 0.35,  # 修改为0.35，使总和不等于1
                 "D": 0.25,
+                "H8": 0.10,
                 "H4": 0.2,
                 "H1": 0.15,
                 "M15": 0.07,
@@ -227,9 +233,9 @@ class TestPeriodWeightFilter:
         assert abs(weights[Timeframe.WEEKLY] - 0.35) < 0.001
         assert abs(weights[Timeframe.DAILY] - 0.25) < 0.001
 
-        # 检查不归一化（总和应为1.05，不是1.0）
+        # 检查不归一化（总和应为1.15，不是1.0）
         total = sum(weights.values())
-        assert abs(total - 1.05) < 0.001  # 不应归一化，保持原总和
+        assert abs(total - 1.15) < 0.001  # 不应归一化，保持原总和
 
     def test_min_weight_enforcement(self):
         """测试最小权重强制"""
@@ -257,7 +263,7 @@ class TestPeriodWeightFilter:
         assert "normalize" in report
         assert "min_weight" in report
 
-        assert len(report["base_weights"]) == 6
+        assert len(report["base_weights"]) == 7
         assert len(report["regime_adjustments"]) == 4  # 4种市场体制
 
 

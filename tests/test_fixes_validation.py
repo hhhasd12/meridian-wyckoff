@@ -21,7 +21,7 @@ print("1. 测试异常数据验证模块修复")
 print("-" * 50)
 
 try:
-    from src.core.anomaly_validator import (
+    from src.plugins.risk_management.anomaly_validator import (
         AnomalyValidator,
         AnomalyEvent,
         CorrelationData,
@@ -128,7 +128,7 @@ print("2. 测试熔断机制模块修复")
 print("-" * 50)
 
 try:
-    from src.core.circuit_breaker import (
+    from src.plugins.risk_management.circuit_breaker import (
         CircuitBreaker,
         CircuitBreakerStatus,
         TripReason,

@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 import pytest
-from src.core.conflict_resolver import (
+from src.plugins.signal_validation.conflict_resolver import (
     ConflictResolutionManager,
     ConflictType,
     ResolutionBias,

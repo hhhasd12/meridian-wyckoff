@@ -29,23 +29,23 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 # 导入核心模块
 try:
-    from src.core.data_pipeline import DataPipeline, DataRequest, Timeframe, DataSource
-    from src.core.data_sanitizer import (
+    from src.plugins.data_pipeline.data_pipeline import DataPipeline, DataRequest, Timeframe, DataSource
+    from src.plugins.data_pipeline.data_sanitizer import (
         DataSanitizer,
         DataSanitizerConfig,
         MarketType,
         RawCandle,
         HistoricalContext,
     )
-    from src.core.market_regime import RegimeDetector
-    from src.core.tr_detector import TRDetector
-    from src.core.curve_boundary import CurveBoundaryFitter
-    from src.core.breakout_validator import BreakoutValidator
-    from src.core.anomaly_validator import AnomalyValidator
-    from src.core.circuit_breaker import CircuitBreaker
-    from src.core.period_weight_filter import PeriodWeightFilter
-    from src.core.conflict_resolver import ConflictResolutionManager
-    from src.core.micro_entry_validator import MicroEntryValidator
+    from src.plugins.market_regime import RegimeDetector
+    from src.plugins.pattern_detection.tr_detector import TRDetector
+    from src.plugins.pattern_detection.curve_boundary import CurveBoundaryFitter
+    from src.plugins.signal_validation.breakout_validator import BreakoutValidator
+    from src.plugins.risk_management.anomaly_validator import AnomalyValidator
+    from src.plugins.risk_management.circuit_breaker import CircuitBreaker
+    from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
+    from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager
+    from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
     from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
     from src.core.system_orchestrator import (
         SystemOrchestrator,
@@ -71,7 +71,7 @@ except ImportError as e:
             RawCandle,
             HistoricalContext,
         )
-        from core.market_regime import RegimeDetector
+        from src.plugins.market_regime import RegimeDetector
         from core.tr_detector import TRDetector
         from core.curve_boundary import CurveBoundaryFitter
         from core.breakout_validator import BreakoutValidator

@@ -87,7 +87,7 @@ def test_data_sanitizer_conversion():
     """测试数据清洗器的时间戳处理"""
     print("\n=== 测试数据清洗器时间戳处理 ===")
 
-    from src.core.data_sanitizer import DataSanitizer, DataSanitizerConfig, MarketType
+    from src.plugins.data_pipeline.data_sanitizer import DataSanitizer, DataSanitizerConfig, MarketType
 
     # 创建测试数据（Unix毫秒整数索引）
     timestamps = [

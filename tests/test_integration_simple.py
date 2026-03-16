@@ -53,7 +53,7 @@ def test_visualization_in_system():
     test_data = create_test_data()
 
     # 导入决策可视化器
-    from src.core.decision_visualizer import DecisionVisualizer
+    from src.plugins.dashboard.decision_visualizer import DecisionVisualizer
 
     # 创建可视化器
     visualizer_config = {

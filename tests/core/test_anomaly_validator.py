@@ -12,7 +12,7 @@ import unittest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from src.core.anomaly_validator import (
+from src.plugins.risk_management.anomaly_validator import (
     AnomalyValidator,
     AnomalyEvent,
     AnomalyType,

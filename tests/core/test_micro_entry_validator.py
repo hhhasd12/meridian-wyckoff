@@ -11,7 +11,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from src.core.micro_entry_validator import (
+from src.plugins.signal_validation.micro_entry_validator import (
     MicroEntryValidator,
     EntrySignalType,
     StructureType,

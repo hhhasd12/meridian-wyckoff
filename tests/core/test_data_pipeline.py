@@ -17,7 +17,7 @@ import pandas as pd
 import pickle
 
 try:
-    from src.core.data_pipeline import (
+    from src.plugins.data_pipeline.data_pipeline import (
         DataPipeline,
         DataRequest,
         DataSource,

@@ -6,7 +6,7 @@
 
 import numpy as np
 import pandas as pd
-from src.core.curve_boundary import GeometricAnalyzer
+from src.plugins.pattern_detection.curve_boundary import GeometricAnalyzer
 
 
 def test_circle_fit():

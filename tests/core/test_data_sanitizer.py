@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 try:
-    from src.core.data_sanitizer import DataSanitizer, DataSanitizerConfig, AnomalyEvent, RawCandle
+    from src.plugins.data_pipeline.data_sanitizer import DataSanitizer, DataSanitizerConfig, AnomalyEvent, RawCandle
 except ImportError:
     from core.data_sanitizer import DataSanitizer, DataSanitizerConfig, AnomalyEvent, RawCandle
 
@@ -71,7 +71,7 @@ class TestDataSanitizer(unittest.TestCase):
             close=103.0,
             volume=0.0,  # zero volume → anomaly
         )
-        from src.core.data_sanitizer import MarketType
+        from src.plugins.data_pipeline.data_sanitizer import MarketType
         event = AnomalyEvent(
             raw_candle=raw,
             anomaly_types=["ZERO_VOLUME"],
@@ -94,7 +94,7 @@ class TestDataSanitizer(unittest.TestCase):
 
     def test_market_type_sensitive_handling(self):
         """测试市场类型敏感处理"""
-        from src.core.data_sanitizer import MarketType
+        from src.plugins.data_pipeline.data_sanitizer import MarketType
         config_crypto = DataSanitizerConfig()
         config_crypto.MARKET_TYPE = MarketType.CRYPTO
         sanitizer_crypto = DataSanitizer(config_crypto)
@@ -122,7 +122,7 @@ class TestDataSanitizer(unittest.TestCase):
 
     def test_sanitize_candle_price_gap(self):
         """测试价格跳空处理"""
-        from src.core.data_sanitizer import HistoricalContext
+        from src.plugins.data_pipeline.data_sanitizer import HistoricalContext
         candle = {
             "timestamp": datetime.now(),
             "open": 200.0,   # 相比历史均价100大幅跳空

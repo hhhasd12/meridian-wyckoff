@@ -11,7 +11,7 @@ import pytest
 import time
 import threading
 from datetime import datetime, timedelta
-from src.core.performance_monitor import (
+from src.plugins.dashboard.performance_monitor import (
     PerformanceMonitor,
     HealthStatus,
     AlertLevel,

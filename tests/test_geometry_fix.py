@@ -7,7 +7,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from src.core.curve_boundary import CurveBoundaryFitter, GeometricAnalyzer, BoundaryType
+from src.plugins.pattern_detection.curve_boundary import CurveBoundaryFitter, GeometricAnalyzer, BoundaryType
 
 
 def test_geometric_analyzer():
@@ -195,7 +195,7 @@ def test_integration_with_tr_detector():
     print("=" * 60)
 
     try:
-        from src.core.tr_detector import TRDetector
+        from src.plugins.pattern_detection.tr_detector import TRDetector
 
         # 创建模拟数据
         np.random.seed(123)

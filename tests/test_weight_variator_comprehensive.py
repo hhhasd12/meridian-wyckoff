@@ -16,7 +16,7 @@ from src.core.weight_variator import (
 )
 
 # 使用实际的错题本枚举
-from src.core.mistake_book import ErrorPattern, ErrorSeverity
+from src.plugins.self_correction.mistake_book import ErrorPattern, ErrorSeverity
 
 def test_mutation_operator_base_class():
     """测试变异算子基类"""

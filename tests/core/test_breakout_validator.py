@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 try:
-    from src.core.breakout_validator import BreakoutValidator, BreakoutStatus
+    from src.plugins.signal_validation.breakout_validator import BreakoutValidator, BreakoutStatus
 except ImportError:
     from core.breakout_validator import BreakoutValidator, BreakoutStatus
 

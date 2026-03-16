@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import pytest
 from datetime import datetime
-from src.core.evolution_archivist import (
+from src.plugins.evolution.archivist import (
     EvolutionArchivist,
     EvolutionLog,
     EvolutionEventType,

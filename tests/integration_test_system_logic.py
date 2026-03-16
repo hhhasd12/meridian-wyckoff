@@ -15,14 +15,14 @@ import pandas as pd
 
 # 导入核心模块
 try:
-    from src.core.data_sanitizer import DataSanitizer, RawCandle, HistoricalContext
-    from src.core.anomaly_validator import AnomalyValidator
-    from src.core.circuit_breaker import CircuitBreaker
-    from src.core.tr_detector import TRDetector, TRStatus, BreakoutDirection
-    from src.core.breakout_validator import BreakoutValidator, BreakoutStatus
+    from src.plugins.data_pipeline.data_sanitizer import DataSanitizer, RawCandle, HistoricalContext
+    from src.plugins.risk_management.anomaly_validator import AnomalyValidator
+    from src.plugins.risk_management.circuit_breaker import CircuitBreaker
+    from src.plugins.pattern_detection.tr_detector import TRDetector, TRStatus, BreakoutDirection
+    from src.plugins.signal_validation.breakout_validator import BreakoutValidator, BreakoutStatus
     from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine
     from src.core.system_orchestrator import SystemOrchestrator
-    from src.core.config_system import create_default_config
+    from src.plugins.orchestrator.config_types import create_default_config
 except ImportError:
     from core.data_sanitizer import DataSanitizer, RawCandle, HistoricalContext
     from core.anomaly_validator import AnomalyValidator

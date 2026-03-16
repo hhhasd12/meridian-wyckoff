@@ -16,7 +16,7 @@ from src.core.weight_variator import (
     ThresholdMutationOperator,
     WeightMutationOperator,
 )
-from src.core.mistake_book import MistakeBook, MistakeType, ErrorPattern, ErrorSeverity
+from src.plugins.self_correction.mistake_book import MistakeBook, MistakeType, ErrorPattern, ErrorSeverity
 
 
 class TestWeightVariator:

@@ -11,7 +11,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from src.core.market_regime import MarketRegime, RegimeDetector
+from src.plugins.market_regime import MarketRegime, RegimeDetector
 
 
 class TestMarketRegime:

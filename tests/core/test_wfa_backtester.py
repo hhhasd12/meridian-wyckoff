@@ -12,12 +12,12 @@ import unittest
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from src.core.wfa_backtester import (
+from src.plugins.evolution.wfa_backtester import (
     WFABacktester,
     PerformanceMetric,
     ValidationResult,
 )
-from src.core.mistake_book import MistakeBook, MistakeType, ErrorSeverity, ErrorPattern
+from src.plugins.self_correction.mistake_book import MistakeBook, MistakeType, ErrorSeverity, ErrorPattern
 
 
 class TestWFABacktester:

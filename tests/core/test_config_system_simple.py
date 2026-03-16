@@ -14,7 +14,7 @@ import unittest
 import tempfile
 
 try:
-    from src.core.config_system import (
+    from src.plugins.orchestrator.config_types import (
         TRConfig,
         DataSanitizerConfig,
         PinBodyAnalyzerConfig,

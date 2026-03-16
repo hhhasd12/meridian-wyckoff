@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import pytest
 from unittest.mock import Mock
 from datetime import datetime
-from src.core.self_correction_workflow import (
+from src.plugins.self_correction.workflow import (
     SelfCorrectionWorkflow,
     CorrectionResult,
     CorrectionStage,

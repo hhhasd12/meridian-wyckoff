@@ -23,19 +23,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # 导入核心模块
 try:
-    from src.core.wfa_backtester import (
+    from src.plugins.evolution.wfa_backtester import (
         WFABacktester,
         PerformanceMetric,
         ValidationResult,
     )
-    from src.core.mistake_book import (
+    from src.plugins.self_correction.mistake_book import (
         MistakeBook,
         MistakeType,
         ErrorSeverity,
         ErrorPattern,
     )
     from src.core.weight_variator import WeightVariator
-    from src.core.self_correction_workflow import SelfCorrectionWorkflow
+    from src.plugins.self_correction.workflow import SelfCorrectionWorkflow
 except ImportError as e:
     print(f"导入模块失败: {e}")
     print("请确保在项目根目录运行此脚本")

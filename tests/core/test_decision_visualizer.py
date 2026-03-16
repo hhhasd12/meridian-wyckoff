@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from src.core.decision_visualizer import DecisionVisualizer, PlotStyle
+from src.plugins.dashboard.decision_visualizer import DecisionVisualizer, PlotStyle
 
 
 class TestPlotStyle:

@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 try:
-    from src.core.curve_boundary import CurveBoundaryFitter, BoundaryType
+    from src.plugins.pattern_detection.curve_boundary import CurveBoundaryFitter, BoundaryType
 except ImportError:
     from core.curve_boundary import CurveBoundaryFitter, BoundaryType
 
