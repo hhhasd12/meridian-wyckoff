@@ -102,7 +102,7 @@ class BacktestEngine:
 
         logger.debug(f"BacktestEngine initialized: capital={initial_capital}")
 
-    @error_handler(logger=logger, reraise=False, default_return=BacktestResult())
+    @error_handler(logger=logger, reraise=True, default_return=BacktestResult())
     def run(
         self,
         data: pd.DataFrame,

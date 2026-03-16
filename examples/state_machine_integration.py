@@ -13,9 +13,9 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
-from src.core.data_pipeline import DataPipeline
-from src.core.tr_detector import TRDetector
-from src.core.market_regime import RegimeDetector
+from src.plugins.data_pipeline.data_pipeline import DataPipeline
+from src.plugins.pattern_detection.tr_detector import TRDetector
+from src.plugins.market_regime.detector import RegimeDetector
 
 
 def generate_sample_data(n_bars: int = 100) -> pd.DataFrame:

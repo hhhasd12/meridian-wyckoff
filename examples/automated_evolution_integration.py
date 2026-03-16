@@ -14,10 +14,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import Optional
 
-from src.core.mistake_book import MistakeBook, MistakeType, ErrorSeverity, ErrorPattern
+from src.plugins.self_correction.mistake_book import MistakeBook, MistakeType, ErrorSeverity, ErrorPattern
 from src.core.weight_variator import WeightVariator
-from src.core.wfa_backtester import WFABacktester, PerformanceMetric, ValidationResult
-from src.core.performance_monitor import (
+from src.plugins.evolution.wfa_backtester import WFABacktester, PerformanceMetric, ValidationResult
+from src.plugins.dashboard.performance_monitor import (
     PerformanceMonitor,
     ModuleType,
     HealthStatus,

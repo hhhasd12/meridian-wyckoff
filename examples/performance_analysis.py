@@ -24,14 +24,14 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core.market_regime import RegimeDetector
+from src.plugins.market_regime.detector import RegimeDetector
 from src.perception.fvg_detector import FVGDetector
-from src.core.tr_detector import TRDetector
-from src.core.curve_boundary import CurveBoundaryFitter
-from src.core.breakout_validator import BreakoutValidator
-from src.core.period_weight_filter import PeriodWeightFilter
-from src.core.conflict_resolver import ConflictResolutionManager
-from src.core.micro_entry_validator import MicroEntryValidator
+from src.plugins.pattern_detection.tr_detector import TRDetector
+from src.plugins.pattern_detection.curve_boundary import CurveBoundaryFitter
+from src.plugins.signal_validation.breakout_validator import BreakoutValidator
+from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
+from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager
+from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
 from src.core.wyckoff_state_machine import WyckoffStateMachine
 
 

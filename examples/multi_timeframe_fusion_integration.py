@@ -17,11 +17,11 @@ from datetime import datetime, timedelta
 # 添加项目路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.core.period_weight_filter import PeriodWeightFilter, Timeframe
-from src.core.conflict_resolver import ConflictResolutionManager, ConflictType
-from src.core.micro_entry_validator import MicroEntryValidator
+from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter, Timeframe
+from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager, ConflictType
+from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
 from src.core.wyckoff_state_machine import EnhancedWyckoffStateMachine, StateConfig
-from src.core.market_regime import RegimeDetector, MarketRegime
+from src.plugins.market_regime.detector import RegimeDetector, MarketRegime
 
 
 def generate_multi_timeframe_sample_data():
