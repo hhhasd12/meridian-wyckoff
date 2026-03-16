@@ -29,7 +29,7 @@ import pandas as pd
 
 SYMBOL = "ETH/USDT"
 DATA_DIR = "data"
-BATCH_LIMIT = 1500
+BATCH_LIMIT = 1000  # 币安 K 线接口实际上限
 REQUEST_DELAY = 0.3
 
 # ETH/USDT 在币安上线时间: 2017-08-17
@@ -41,7 +41,14 @@ TIMEFRAMES = ["1d", "4h", "1h", "15m", "5m"]
 
 def create_exchange() -> ccxt.binance:
     """连接币安，自动读取代理"""
-    config = {"enableRateLimit": True, "timeout": 30000}
+    config = {
+        "enableRateLimit": True,
+        "timeout": 30000,
+        "options": {
+            "defaultType": "spot",  # 只用现货API，避免合约端点被墙
+            "fetchMarkets": ["spot"],  # 只加载现货市场
+        },
+    }
 
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
     if proxy:
