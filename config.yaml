@@ -226,6 +226,55 @@ notifications:
 # 5. 监控系统运行状态
 
 # ============================================================================
+# 插件配置
+# ============================================================================
+# 每个插件通过 ConfigSystem.get_plugin_config(name) 获取对应配置
+plugins:
+  orchestrator:
+    mode: "paper"
+    symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    timeframes: ["H4", "H1", "M15"]
+    data_refresh_interval: 60
+    evolution_interval: 3600
+    cycle_interval: 60
+  exchange_connector:
+    exchange: "binance"
+    paper_trading: true
+    api_key: ""
+    api_secret: ""
+  data_pipeline:
+    source: "ccxt"
+    cache_ttl: 300
+    enable_cache: true
+    enable_validation: true
+    max_retries: 3
+    request_timeout: 30
+  market_regime:
+    atr_period: 14
+  dashboard:
+    enabled: true
+  evolution:
+    storage_path: "./evolution_memory.jsonl"
+    max_queue_size: 1000
+    process_interval: 1.0
+  self_correction:
+    enabled: true
+    correction_interval: 86400
+  risk_management:
+    max_position_size: 0.1
+    risk_per_trade: 0.02
+  weight_system:
+    enabled: true
+  signal_validation:
+    enabled: true
+  perception:
+    enabled: true
+  pattern_detection:
+    enabled: true
+  wyckoff_state_machine:
+    enabled: true
+
+# ============================================================================
 # 启动说明
 # ============================================================================
 # 1. 启动命令: python run_live.py

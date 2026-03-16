@@ -10,6 +10,22 @@
 
 运行方式：
     python run_evolution.py
+
+注意：此脚本是独立运行方式，不通过 API 服务器。
+建议使用 API 服务器方式：
+
+1. 启动 API 服务器：
+   python -m uvicorn src.api.app:app --port 9527
+
+2. 通过 API 控制进化盘：
+   curl -X POST http://localhost:9527/api/evolution/start
+   curl -X GET http://localhost:9527/api/evolution/status
+   curl -X POST http://localhost:9527/api/evolution/stop
+
+此脚本保留作为备用启动方式，适合：
+- 命令行直接运行进化
+- 调试和开发测试
+- 无需 Web 界面的场景
 """
 
 import sys
@@ -31,6 +47,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # ── 启动自检 ──────────────────────────────────────────────
 from health_check import run_health_check, print_report, save_report
 
+
 def _startup_health_check():
     """启动前全面自检，发现严重问题则阻止启动"""
     report = run_health_check(auto_fix=False)
@@ -42,7 +59,10 @@ def _startup_health_check():
         print("提示：运行 python health_check.py --fix 尝试自动修复已知问题")
         sys.exit(1)
     else:
-        print(f"[Health Check] OK: {report.ok_count} passed, {report.warn_count} warnings. Starting...")
+        print(
+            f"[Health Check] OK: {report.ok_count} passed, {report.warn_count} warnings. Starting..."
+        )
+
 
 _startup_health_check()
 # ──────────────────────────────────────────────────────────
@@ -50,14 +70,21 @@ _startup_health_check()
 import pandas as pd
 import numpy as np
 from src.data.loader import DataLoader as MarketDataLoader  # DataLoader 是实际类名
-from src.core.self_correction_workflow import SelfCorrectionWorkflow
-from src.core.mistake_book import MistakeBook, MistakeType, ErrorSeverity, ErrorPattern
-from src.core.weight_variator import WeightVariator
-from src.core.wfa_backtester import WFABacktester, PerformanceMetric
+from src.plugins.self_correction.workflow import SelfCorrectionWorkflow
+from src.plugins.self_correction.mistake_book import (
+    MistakeBook,
+    MistakeType,
+    ErrorSeverity,
+    ErrorPattern,
+)
+from src.core.weight_variator import WeightVariator  # legacy，暂无插件版本
+from src.plugins.evolution.wfa_backtester import WFABacktester, PerformanceMetric
 from src.backtest.engine import BacktestEngine
-from src.core.wyckoff_state_machine import WyckoffStateMachine
-from src.core.market_regime import RegimeDetector
-from src.core.period_weight_filter import PeriodWeightFilter
+from src.core.wyckoff_state_machine import (
+    WyckoffStateMachine,
+)  # legacy，暂无独立插件实现
+from src.plugins.market_regime.detector import RegimeDetector
+from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
 
 # 配置日志：主模块 INFO，内部模块 WARNING（避免中文乱码和刷屏）
 logging.basicConfig(
@@ -96,8 +123,11 @@ def load_evolution_data():
     }
 
     col_rename = {
-        "Open": "open", "High": "high", "Low": "low",
-        "Close": "close", "Volume": "volume",
+        "Open": "open",
+        "High": "high",
+        "Low": "low",
+        "Close": "close",
+        "Volume": "volume",
         "Open_time": "open_time",
     }
 
@@ -105,10 +135,13 @@ def load_evolution_data():
     for tf, pkl_path in pkl_map.items():
         if os.path.exists(pkl_path):
             import pickle
+
             with open(pkl_path, "rb") as f:
                 df = pickle.load(f)
             data[tf] = df
-            logger.info(f"Loaded {tf} from pkl: {len(df)} bars ({df.index[0]} ~ {df.index[-1]})")
+            logger.info(
+                f"Loaded {tf} from pkl: {len(df)} bars ({df.index[0]} ~ {df.index[-1]})"
+            )
 
     # pkl 缺失的时间框架从 CSV 补充
     for tf, csv_path in csv_map.items():
@@ -119,10 +152,14 @@ def load_evolution_data():
             # 归一化列名（CSV 列名是大写）
             df = df.rename(columns=col_rename)
             # 只保留核心列
-            core_cols = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
+            core_cols = [
+                c for c in ["open", "high", "low", "close", "volume"] if c in df.columns
+            ]
             df = df[core_cols]
             data[tf] = df
-            logger.info(f"Loaded {tf} from csv: {len(df)} bars ({df.index[0]} ~ {df.index[-1]})")
+            logger.info(
+                f"Loaded {tf} from csv: {len(df)} bars ({df.index[0]} ~ {df.index[-1]})"
+            )
         else:
             logger.warning(f"Data file not found: {csv_path}")
 
@@ -160,20 +197,38 @@ def create_baseline_config():
     return {
         "period_weight_filter": {
             "weights": {
-                "D1":  0.25,
-                "H4":  0.30,
-                "H1":  0.25,
+                "D1": 0.25,
+                "H4": 0.30,
+                "H1": 0.25,
                 "M15": 0.12,
-                "M5":  0.08,
+                "M5": 0.08,
             },
             "regime_weights": {
-                "TRENDING_BULLISH": {"D1": 0.30, "H4": 0.35, "H1": 0.20, "M15": 0.10, "M5": 0.05},
-                "TRENDING_BEARISH": {"D1": 0.30, "H4": 0.35, "H1": 0.20, "M15": 0.10, "M5": 0.05},
-                "RANGING":          {"D1": 0.15, "H4": 0.25, "H1": 0.30, "M15": 0.20, "M5": 0.10},
+                "TRENDING_BULLISH": {
+                    "D1": 0.30,
+                    "H4": 0.35,
+                    "H1": 0.20,
+                    "M15": 0.10,
+                    "M5": 0.05,
+                },
+                "TRENDING_BEARISH": {
+                    "D1": 0.30,
+                    "H4": 0.35,
+                    "H1": 0.20,
+                    "M15": 0.10,
+                    "M5": 0.05,
+                },
+                "RANGING": {
+                    "D1": 0.15,
+                    "H4": 0.25,
+                    "H1": 0.30,
+                    "M15": 0.20,
+                    "M5": 0.10,
+                },
             },
         },
         "threshold_parameters": {
-            "confidence_threshold": 0.40,   # 威科夫状态机置信度实际范围 0.2~0.7，0.40 是有效门控
+            "confidence_threshold": 0.40,  # 威科夫状态机置信度实际范围 0.2~0.7，0.40 是有效门控
             "volume_threshold": 1.5,
             "volatility_threshold": 0.02,
         },
@@ -198,9 +253,13 @@ def real_performance_evaluator(config: dict, data: pd.DataFrame) -> dict:
     """
     if data is None or len(data) < 50:
         return {
-            "SHARPE_RATIO": 0.0, "MAX_DRAWDOWN": 1.0, "WIN_RATE": 0.0,
-            "PROFIT_FACTOR": 0.0, "CALMAR_RATIO": 0.0,
-            "STABILITY_SCORE": 0.0, "COMPOSITE_SCORE": 0.0,
+            "SHARPE_RATIO": 0.0,
+            "MAX_DRAWDOWN": 1.0,
+            "WIN_RATE": 0.0,
+            "PROFIT_FACTOR": 0.0,
+            "CALMAR_RATIO": 0.0,
+            "STABILITY_SCORE": 0.0,
+            "COMPOSITE_SCORE": 0.0,
         }
 
     data = data.iloc[-2000:].copy()
@@ -208,7 +267,7 @@ def real_performance_evaluator(config: dict, data: pd.DataFrame) -> dict:
     # ── 从 config 提取参数 ────────────────────────────────────────────────
     tp = config.get("threshold_parameters", {})
     confidence_threshold = float(tp.get("confidence_threshold", 0.70))
-    vol_threshold        = float(tp.get("volume_threshold", 1.5))
+    vol_threshold = float(tp.get("volume_threshold", 1.5))
 
     pw_cfg = config.get("period_weight_filter", {})
     weight_map = pw_cfg.get("weights", {})  # {"D1": 0.25, "H4": 0.30, ...}
@@ -217,112 +276,147 @@ def real_performance_evaluator(config: dict, data: pd.DataFrame) -> dict:
     transition_confidence = float(sm_cfg.get("transition_confidence", 0.75))
 
     # ── 初始化系统组件 ────────────────────────────────────────────────────
-    regime_detector   = RegimeDetector()
-    wyckoff_sm        = WyckoffStateMachine()
+    regime_detector = RegimeDetector()
+    wyckoff_sm = WyckoffStateMachine()
     wyckoff_sm.config.STATE_SWITCH_HYSTERESIS = transition_confidence
 
     # PeriodWeightFilter 用 config 中的权重初始化
     # 键名映射：config 用 "D1"/"H4"/"H1"/"M15"/"M5"，PeriodWeightFilter 用 "D"/"H4"/"H1"/"M15"/"M5"
     pwf_weights = {
-        "D":   weight_map.get("D1",  0.20),
-        "H4":  weight_map.get("H4",  0.18),
-        "H1":  weight_map.get("H1",  0.15),
+        "D": weight_map.get("D1", 0.20),
+        "H4": weight_map.get("H4", 0.18),
+        "H1": weight_map.get("H1", 0.15),
         "M15": weight_map.get("M15", 0.12),
-        "M5":  weight_map.get("M5",  0.10),
+        "M5": weight_map.get("M5", 0.10),
     }
     period_filter = PeriodWeightFilter({"weights": pwf_weights})
 
     # ── 第1步：识别整体市场体制 ───────────────────────────────────────────
     regime_result = regime_detector.detect_regime(data)
-    regime_name   = regime_result.get("regime").value if regime_result.get("regime") else "UNKNOWN"
+    regime_name = (
+        regime_result.get("regime").value if regime_result.get("regime") else "UNKNOWN"
+    )
 
     # ── 第2步：逐根K线运行威科夫状态机，收集信号 ──────────────────────────
     # 需要 vol_mean 作为成交量基准
     vol_mean = data["volume"].rolling(20).mean()
 
     signals = []
-    prev_bias = "NEUTRAL"   # 只在方向发生变化时触发，避免每根K线都出信号
+    prev_bias = "NEUTRAL"  # 只在方向发生变化时触发，避免每根K线都出信号
 
     # 预计算成交量相对强度（滚动20根均值）
     vol_ratio = data["volume"] / vol_mean  # 当前成交量 / 均值
 
     for i in range(50, len(data)):
         bar = data.iloc[i]
-        vm  = vol_mean.iloc[i] if not np.isnan(vol_mean.iloc[i]) else bar["volume"]
+        vm = vol_mean.iloc[i] if not np.isnan(vol_mean.iloc[i]) else bar["volume"]
 
         # ── 成交量过滤（直接用 config 的 vol_threshold）────────────────
         # vol_threshold=1.5 → 只有成交量 > 均值1.5倍才考虑信号
         # vol_threshold=2.0 → 只有成交量 > 均值2.0倍才考虑信号
         # 这让不同 config 产生不同数量的有效信号
-        current_vol_ratio = vol_ratio.iloc[i] if not np.isnan(vol_ratio.iloc[i]) else 0.0
+        current_vol_ratio = (
+            vol_ratio.iloc[i] if not np.isnan(vol_ratio.iloc[i]) else 0.0
+        )
         if current_vol_ratio < vol_threshold:
             continue  # 成交量不足，跳过
 
         # 构建 context（状态机需要的上下文）
         ctx = {
-            "volume_mean":         float(vm),
-            "volume_threshold":    float(vol_threshold),
-            "recent_low":          float(data["low"].iloc[max(0, i-20):i+1].min()),
-            "recent_high":         float(data["high"].iloc[max(0, i-20):i+1].max()),
-            "bars_in_downtrend":   int(i - data["close"].iloc[max(0, i-20):i+1].values.argmax()),
-            "trend_strength":      0.5,
-            "market_regime":       regime_name,
+            "volume_mean": float(vm),
+            "volume_threshold": float(vol_threshold),
+            "recent_low": float(data["low"].iloc[max(0, i - 20) : i + 1].min()),
+            "recent_high": float(data["high"].iloc[max(0, i - 20) : i + 1].max()),
+            "bars_in_downtrend": int(
+                i - data["close"].iloc[max(0, i - 20) : i + 1].values.argmax()
+            ),
+            "trend_strength": 0.5,
+            "market_regime": regime_name,
             "critical_price_levels": wyckoff_sm.critical_price_levels,
         }
 
         current_state = wyckoff_sm.process_candle(bar, ctx)
 
         # 从状态机的置信度字典读取各状态的当前置信度
-        accum_states = ["PS", "SC", "AR", "ST", "TEST", "SPRING", "SO", "LPS", "MSOS", "JOC", "BU"]
-        dist_states  = ["PSY", "BC", "AR_DIST", "ST_DIST", "UT", "UTAD", "LPSY"]
+        accum_states = [
+            "PS",
+            "SC",
+            "AR",
+            "ST",
+            "TEST",
+            "SPRING",
+            "SO",
+            "LPS",
+            "MSOS",
+            "JOC",
+            "BU",
+        ]
+        dist_states = ["PSY", "BC", "AR_DIST", "ST_DIST", "UT", "UTAD", "LPSY"]
 
-        bull_conf = max((wyckoff_sm.state_confidences.get(s, 0.0) for s in accum_states), default=0.0)
-        bear_conf = max((wyckoff_sm.state_confidences.get(s, 0.0) for s in dist_states),  default=0.0)
+        bull_conf = max(
+            (wyckoff_sm.state_confidences.get(s, 0.0) for s in accum_states),
+            default=0.0,
+        )
+        bear_conf = max(
+            (wyckoff_sm.state_confidences.get(s, 0.0) for s in dist_states), default=0.0
+        )
 
         # 多周期加权融合
         tf_decisions = {
             "H4": {
-                "state":      "BULLISH" if bull_conf > bear_conf else ("BEARISH" if bear_conf > bull_conf else "NEUTRAL"),
+                "state": "BULLISH"
+                if bull_conf > bear_conf
+                else ("BEARISH" if bear_conf > bull_conf else "NEUTRAL"),
                 "confidence": max(bull_conf, bear_conf),
             }
         }
         weighted = period_filter.get_weighted_decision(tf_decisions, regime=regime_name)
         weighted_confidence = weighted.get("confidence", 0.0)
-        primary_bias        = weighted.get("primary_bias", "NEUTRAL")
+        primary_bias = weighted.get("primary_bias", "NEUTRAL")
 
         # ── 信号门控：置信度超过阈值 且 方向发生变化时才触发 ────────────
         # confidence_threshold 不同 → 触发时机不同 → 不同config产生不同信号序列
         if weighted_confidence >= confidence_threshold and primary_bias != prev_bias:
             if primary_bias == "BULLISH":
-                signals.append({
-                    "timestamp": bar.name,
-                    "signal":    "BUY",
-                    "reason":    f"Wyckoff:{current_state} conf={weighted_confidence:.2f} vol_ratio={current_vol_ratio:.2f}",
-                })
+                signals.append(
+                    {
+                        "timestamp": bar.name,
+                        "signal": "BUY",
+                        "reason": f"Wyckoff:{current_state} conf={weighted_confidence:.2f} vol_ratio={current_vol_ratio:.2f}",
+                    }
+                )
                 prev_bias = "BULLISH"
             elif primary_bias == "BEARISH":
-                signals.append({
-                    "timestamp": bar.name,
-                    "signal":    "SELL",
-                    "reason":    f"Wyckoff:{current_state} conf={weighted_confidence:.2f} vol_ratio={current_vol_ratio:.2f}",
-                })
+                signals.append(
+                    {
+                        "timestamp": bar.name,
+                        "signal": "SELL",
+                        "reason": f"Wyckoff:{current_state} conf={weighted_confidence:.2f} vol_ratio={current_vol_ratio:.2f}",
+                    }
+                )
                 prev_bias = "BEARISH"
 
     # ── 第3步：BacktestEngine 真实模拟交易 ───────────────────────────────
     engine = BacktestEngine(initial_capital=10000.0, commission_rate=0.001)
     result = engine.run(data, state_machine=None, signals=signals)
 
-    sharpe   = result.sharpe_ratio if result.sharpe_ratio and not np.isnan(result.sharpe_ratio) else 0.0
+    sharpe = (
+        result.sharpe_ratio
+        if result.sharpe_ratio and not np.isnan(result.sharpe_ratio)
+        else 0.0
+    )
     drawdown = result.max_drawdown if result.max_drawdown else 0.0
-    win_rate = result.win_rate     if result.win_rate     else 0.0
+    win_rate = result.win_rate if result.win_rate else 0.0
 
     winning_pnls = [t.pnl for t in result.trades if t.pnl > 0]
-    losing_pnls  = [abs(t.pnl) for t in result.trades if t.pnl <= 0 and t.pnl != 0]
+    losing_pnls = [abs(t.pnl) for t in result.trades if t.pnl <= 0 and t.pnl != 0]
     profit_factor = (
-        sum(winning_pnls) / sum(losing_pnls) if losing_pnls and sum(losing_pnls) > 0 else 1.0
+        sum(winning_pnls) / sum(losing_pnls)
+        if losing_pnls and sum(losing_pnls) > 0
+        else 1.0
     )
 
-    calmar    = (sharpe / drawdown) if drawdown > 0 else sharpe
+    calmar = (sharpe / drawdown) if drawdown > 0 else sharpe
     stability = max(0.0, 1.0 - drawdown)
     composite = (
         max(0.0, sharpe) * 0.25
@@ -333,9 +427,13 @@ def real_performance_evaluator(config: dict, data: pd.DataFrame) -> dict:
     )
 
     return {
-        "SHARPE_RATIO": sharpe, "MAX_DRAWDOWN": drawdown, "WIN_RATE": win_rate,
-        "PROFIT_FACTOR": profit_factor, "CALMAR_RATIO": calmar,
-        "STABILITY_SCORE": stability, "COMPOSITE_SCORE": composite,
+        "SHARPE_RATIO": sharpe,
+        "MAX_DRAWDOWN": drawdown,
+        "WIN_RATE": win_rate,
+        "PROFIT_FACTOR": profit_factor,
+        "CALMAR_RATIO": calmar,
+        "STABILITY_SCORE": stability,
+        "COMPOSITE_SCORE": composite,
     }
 
 
@@ -394,14 +492,25 @@ def seed_mistake_book(mistake_book: MistakeBook, num_errors: int = 20):
 
 def _extract_metrics(result: dict) -> dict:
     """从 run_correction_cycle 返回值中提取每轮真实性能指标"""
-    KEYS = ("COMPOSITE_SCORE", "SHARPE_RATIO", "MAX_DRAWDOWN", "WIN_RATE",
-            "PROFIT_FACTOR", "CALMAR_RATIO", "STABILITY_SCORE")
+    KEYS = (
+        "COMPOSITE_SCORE",
+        "SHARPE_RATIO",
+        "MAX_DRAWDOWN",
+        "WIN_RATE",
+        "PROFIT_FACTOR",
+        "CALMAR_RATIO",
+        "STABILITY_SCORE",
+    )
 
     def _pick(d):
         return {k: d[k] for k in KEYS if isinstance(d.get(k), (int, float))}
 
     cycle = result.get("cycle_results", {})
-    wfa_report = (cycle.get("wfa_validation") or {}).get("details", {}).get("validation_report", {})
+    wfa_report = (
+        (cycle.get("wfa_validation") or {})
+        .get("details", {})
+        .get("validation_report", {})
+    )
 
     # 优先：本轮WFA各变异的测试窗口平均性能（真实变化的指标）
     best_perf = {}
@@ -440,7 +549,8 @@ def run_evolution_cycle(workflow: SelfCorrectionWorkflow, cycle_num: int) -> dic
             os.makedirs("evolution_results", exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             with open(
-                f"evolution_results/cycle_{cycle_num}_{timestamp}.json", "w",
+                f"evolution_results/cycle_{cycle_num}_{timestamp}.json",
+                "w",
                 encoding="utf-8",
             ) as f:
                 json.dump(result, f, indent=2, default=str, ensure_ascii=False)
@@ -480,7 +590,7 @@ def main():
         "cycle_interval_hours": 1,
         "mistake_book_config": {},
         "weight_variator_config": {
-            "mutation_rate": 0.9,          # 提高到90%，确保每个成员都真正变异
+            "mutation_rate": 0.9,  # 提高到90%，确保每个成员都真正变异
             "max_mutation_percent": 0.20,  # 提高到20%，确保整数MA窗口能变化
         },
         "wfa_backtester_config": {
@@ -546,15 +656,17 @@ def main():
         # 打印进度
         if result.get("success"):
             metrics = result.get("metrics", {})
-            cs = metrics.get('COMPOSITE_SCORE', None)
-            sr = metrics.get('SHARPE_RATIO', None)
-            wr = metrics.get('WIN_RATE', None)
-            md = metrics.get('MAX_DRAWDOWN', None)
+            cs = metrics.get("COMPOSITE_SCORE", None)
+            sr = metrics.get("SHARPE_RATIO", None)
+            wr = metrics.get("WIN_RATE", None)
+            md = metrics.get("MAX_DRAWDOWN", None)
             cs_str = f"{cs:.4f}" if isinstance(cs, (int, float)) else "N/A"
             sr_str = f"{sr:.4f}" if isinstance(sr, (int, float)) else "N/A"
             wr_str = f"{wr:.2%}" if isinstance(wr, (int, float)) else "N/A"
             md_str = f"{md:.2%}" if isinstance(md, (int, float)) else "N/A"
-            print(f"Cycle #{cycle_count} | Score={cs_str} Sharpe={sr_str} WinRate={wr_str} Drawdown={md_str}")
+            print(
+                f"Cycle #{cycle_count} | Score={cs_str} Sharpe={sr_str} WinRate={wr_str} Drawdown={md_str}"
+            )
         else:
             print(f"Cycle #{cycle_count} FAILED: {result.get('error', '?')}")
 
