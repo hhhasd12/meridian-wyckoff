@@ -50,18 +50,12 @@ class PerceptionPlugin(BasePlugin):
 
     def on_load(self) -> None:
         """加载插件 - 初始化FVG检测器"""
-        from src.perception.fvg_detector import FVGDetector
+        from .fvg_detector import FVGDetector
 
         fvg_config = {
-            "threshold_percent": self._config.get(
-                "fvg_threshold_percent", 0.5
-            ),
-            "auto_threshold": self._config.get(
-                "fvg_auto_threshold", True
-            ),
-            "max_gap_age_bars": self._config.get(
-                "fvg_max_gap_age_bars", 100
-            ),
+            "threshold_percent": self._config.get("fvg_threshold_percent", 0.5),
+            "auto_threshold": self._config.get("fvg_auto_threshold", True),
+            "max_gap_age_bars": self._config.get("fvg_max_gap_age_bars", 100),
         }
         self._fvg_detector = FVGDetector(config=fvg_config)
         self._analysis_count = 0
@@ -85,18 +79,12 @@ class PerceptionPlugin(BasePlugin):
         """
         self._config.update(new_config)
         if self._fvg_detector is not None:
-            from src.perception.fvg_detector import FVGDetector
+            from .fvg_detector import FVGDetector
 
             fvg_config = {
-                "threshold_percent": self._config.get(
-                    "fvg_threshold_percent", 0.5
-                ),
-                "auto_threshold": self._config.get(
-                    "fvg_auto_threshold", True
-                ),
-                "max_gap_age_bars": self._config.get(
-                    "fvg_max_gap_age_bars", 100
-                ),
+                "threshold_percent": self._config.get("fvg_threshold_percent", 0.5),
+                "auto_threshold": self._config.get("fvg_auto_threshold", True),
+                "max_gap_age_bars": self._config.get("fvg_max_gap_age_bars", 100),
             }
             self._fvg_detector = FVGDetector(config=fvg_config)
             self._logger.info("FVG检测器已根据新配置重新初始化")
@@ -168,7 +156,7 @@ class PerceptionPlugin(BasePlugin):
             raise RuntimeError("感知层插件未加载，无法分析K线")
 
         try:
-            from src.perception.candle_physical import CandlePhysical
+            from .candle_physical import CandlePhysical
 
             candle = CandlePhysical(
                 open=open_price,
@@ -223,9 +211,7 @@ class PerceptionPlugin(BasePlugin):
             raise RuntimeError("FVG检测器未初始化")
 
         try:
-            gaps = self._fvg_detector.detect_fvg_gaps(
-                df, context=context
-            )
+            gaps = self._fvg_detector.detect_fvg_gaps(df, context=context)
             self._fvg_count += len(gaps)
 
             for gap in gaps:
@@ -268,7 +254,7 @@ class PerceptionPlugin(BasePlugin):
             raise RuntimeError("感知层插件未加载，无法分析针vs实体")
 
         try:
-            from src.perception.pin_body_analyzer import (
+            from .pin_body_analyzer import (
                 analyze_pin_vs_body,
             )
 

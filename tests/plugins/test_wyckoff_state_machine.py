@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from src.kernel.base_plugin import BasePlugin
-from src.kernel.types import HealthStatus
+from src.kernel.types import HealthStatus, PluginError
 from src.plugins.wyckoff_state_machine.plugin import (
     WyckoffStateMachinePlugin,
 )
@@ -47,36 +47,33 @@ class TestWyckoffSMLoadUnload:
     @patch(
         "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.EnhancedWyckoffStateMachine"
     )
-    @patch(
-        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.WyckoffStateMachine"
-    )
-    def test_load_success(self, mock_wsm: MagicMock, mock_esm: MagicMock) -> None:
+    def test_load_success(self, mock_esm: MagicMock) -> None:
         plugin = WyckoffStateMachinePlugin()
         plugin.on_load()
         assert plugin._state_machine is not None
         assert plugin._enhanced_sm is not None
+        # 单实例：_state_machine 和 _enhanced_sm 指向同一对象
+        assert plugin._state_machine is plugin._enhanced_sm
 
     @patch(
-        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.WyckoffStateMachine",
+        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.EnhancedWyckoffStateMachine",
         side_effect=ImportError("not found"),
     )
     def test_load_import_error(self, mock_cls: MagicMock) -> None:
         plugin = WyckoffStateMachinePlugin()
-        plugin.on_load()
+        with pytest.raises(PluginError):
+            plugin.on_load()
         assert plugin._state_machine is None
         assert plugin._enhanced_sm is None
 
     @patch(
-        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.EnhancedWyckoffStateMachine"
-    )
-    @patch(
-        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.WyckoffStateMachine",
+        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.EnhancedWyckoffStateMachine",
         side_effect=RuntimeError("init fail"),
     )
-    def test_load_runtime_error(self, mock_wsm: MagicMock, mock_esm: MagicMock) -> None:
+    def test_load_runtime_error(self, mock_esm: MagicMock) -> None:
         plugin = WyckoffStateMachinePlugin()
-        plugin.on_load()
-        assert plugin._state_machine is None
+        with pytest.raises(PluginError):
+            plugin.on_load()
         assert plugin._last_error == "init fail"
 
     def test_unload(self) -> None:
@@ -156,12 +153,10 @@ class TestWyckoffSMProcessCandle:
     def test_success_with_result(self) -> None:
         plugin = WyckoffStateMachinePlugin()
         mock_sm = MagicMock()
-        mock_result = MagicMock()
-        mock_result.state_name = "accumulation"
-        mock_result.confidence = 0.85
-        mock_result.intensity = 0.7
-        mock_sm.process_candle.return_value = mock_result
-        mock_sm.current_state = "accumulation"
+        # process_candle 现在返回 str（状态名）
+        mock_sm.process_candle.return_value = "accumulation"
+        mock_sm.state_confidences = {"accumulation": 0.85}
+        mock_sm.state_intensities = {"accumulation": 0.7}
         plugin._state_machine = mock_sm
         plugin.emit_event = MagicMock(return_value=1)
 
@@ -175,14 +170,13 @@ class TestWyckoffSMProcessCandle:
     def test_state_transition(self) -> None:
         plugin = WyckoffStateMachinePlugin()
         mock_sm = MagicMock()
-        mock_result = MagicMock()
-        mock_result.state_name = "markup"
-        mock_result.confidence = 0.9
-        mock_result.intensity = 0.8
-        mock_sm.process_candle.return_value = mock_result
-        mock_sm.current_state = "accumulation"
+        mock_sm.process_candle.return_value = "markup"
+        mock_sm.state_confidences = {"markup": 0.9}
+        mock_sm.state_intensities = {"markup": 0.8}
         plugin._state_machine = mock_sm
         plugin.emit_event = MagicMock(return_value=1)
+        # 设置前一个状态，以触发状态变化检测
+        plugin._prev_state = "accumulation"
 
         plugin.process_candle({"close": 100})
         assert plugin._transition_count == 1
@@ -192,14 +186,12 @@ class TestWyckoffSMProcessCandle:
     def test_no_transition_same_state(self) -> None:
         plugin = WyckoffStateMachinePlugin()
         mock_sm = MagicMock()
-        mock_result = MagicMock()
-        mock_result.state_name = "accumulation"
-        mock_result.confidence = 0.8
-        mock_result.intensity = 0.6
-        mock_sm.process_candle.return_value = mock_result
-        mock_sm.current_state = "accumulation"
+        mock_sm.process_candle.return_value = "accumulation"
+        mock_sm.state_confidences = {"accumulation": 0.8}
+        mock_sm.state_intensities = {"accumulation": 0.6}
         plugin._state_machine = mock_sm
         plugin.emit_event = MagicMock(return_value=1)
+        plugin._prev_state = "accumulation"
 
         plugin.process_candle({"close": 100})
         assert plugin._transition_count == 0
@@ -249,6 +241,11 @@ class TestWyckoffSMMultiTimeframe:
 
         result = plugin.process_multi_timeframe({"1h": pd.DataFrame()})
         assert result == {"consensus": "bullish"}
+        # 验证传递了两个参数（timeframe_data + 空 context_dict）
+        mock_esm.process_multi_timeframe.assert_called_once()
+        call_args = mock_esm.process_multi_timeframe.call_args[0]
+        assert "1h" in call_args[0]
+        assert call_args[1] == {}
 
     def test_error(self) -> None:
         plugin = WyckoffStateMachinePlugin()
@@ -272,17 +269,17 @@ class TestWyckoffSMGenerateSignals:
     def test_success_with_signal(self) -> None:
         plugin = WyckoffStateMachinePlugin()
         mock_esm = MagicMock()
-        mock_esm.generate_signals.return_value = {
-            "type": "BUY",
-            "confidence": 0.9,
-        }
+        # generate_signals() 现在返回 list[dict]
+        mock_esm.generate_signals.return_value = [{"type": "BUY", "confidence": 0.9}]
         plugin._enhanced_sm = mock_esm
         plugin.emit_event = MagicMock(return_value=1)
 
         result = plugin.generate_signals(pd.DataFrame())
-        assert result == {"type": "BUY", "confidence": 0.9}
+        assert result == [{"type": "BUY", "confidence": 0.9}]
         assert plugin._signal_count == 1
         plugin.emit_event.assert_called_once()
+        # generate_signals 不传参数（修复 C-04）
+        mock_esm.generate_signals.assert_called_once_with()
 
     def test_no_signal(self) -> None:
         plugin = WyckoffStateMachinePlugin()
@@ -296,15 +293,15 @@ class TestWyckoffSMGenerateSignals:
         assert plugin._signal_count == 0
         plugin.emit_event.assert_not_called()
 
-    def test_empty_dict_signal(self) -> None:
+    def test_empty_list_signal(self) -> None:
         plugin = WyckoffStateMachinePlugin()
         mock_esm = MagicMock()
-        mock_esm.generate_signals.return_value = {}
+        mock_esm.generate_signals.return_value = []
         plugin._enhanced_sm = mock_esm
         plugin.emit_event = MagicMock(return_value=1)
 
         result = plugin.generate_signals(pd.DataFrame())
-        assert result == {}
+        assert result == []
         assert plugin._signal_count == 0
 
     def test_error(self) -> None:
@@ -463,14 +460,14 @@ class TestWyckoffSMEventEmission:
     def test_state_changed_event_data(self) -> None:
         plugin = WyckoffStateMachinePlugin()
         mock_sm = MagicMock()
-        mock_result = MagicMock()
-        mock_result.state_name = "distribution"
-        mock_result.confidence = 0.75
-        mock_result.intensity = 0.6
-        mock_sm.process_candle.return_value = mock_result
-        mock_sm.current_state = "markup"
+        # process_candle 返回 str
+        mock_sm.process_candle.return_value = "distribution"
+        mock_sm.state_confidences = {"distribution": 0.75}
+        mock_sm.state_intensities = {"distribution": 0.6}
         plugin._state_machine = mock_sm
         plugin.emit_event = MagicMock(return_value=1)
+        # 设置前一状态以触发 state_changed
+        plugin._prev_state = "markup"
 
         plugin.process_candle({"close": 100})
         calls = plugin.emit_event.call_args_list
@@ -484,10 +481,7 @@ class TestWyckoffSMEventEmission:
     def test_signal_generated_event_data(self) -> None:
         plugin = WyckoffStateMachinePlugin()
         mock_esm = MagicMock()
-        mock_esm.generate_signals.return_value = {
-            "type": "SELL",
-            "confidence": 0.8,
-        }
+        mock_esm.generate_signals.return_value = [{"type": "SELL", "confidence": 0.8}]
         plugin._enhanced_sm = mock_esm
         plugin.emit_event = MagicMock(return_value=1)
 

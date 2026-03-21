@@ -195,10 +195,8 @@ class ConflictResolutionManager:
         Returns:
             解决决策字典
         """
-        conflict_detail["d1_state"]
-        conflict_detail["d1_confidence"]
-        conflict_detail["h4_state"]
-        conflict_detail["h4_confidence"]
+        # 注意: d1_state, d1_confidence, h4_state, h4_confidence
+        # 从 conflict_detail 中提取，由下游方法直接使用
 
         # 1. 验证日线派发结构的完整性
         d1_score = self._evaluate_distribution_structure(

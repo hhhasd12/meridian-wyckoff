@@ -49,19 +49,21 @@ class TestSignalToOpenPosition:
             },
         }
         self.manager = PositionManager(self.config)
-        
-        self.df = pd.DataFrame({
-            "open": [100, 101, 102, 103, 104] * 20,
-            "high": [105, 106, 107, 108, 109] * 20,
-            "low": [95, 96, 97, 98, 99] * 20,
-            "close": [100, 101, 102, 103, 104] * 20,
-            "volume": [1000] * 100,
-        })
+
+        self.df = pd.DataFrame(
+            {
+                "open": [100, 101, 102, 103, 104] * 20,
+                "high": [105, 106, 107, 108, 109] * 20,
+                "low": [95, 96, 97, 98, 99] * 20,
+                "close": [100, 101, 102, 103, 104] * 20,
+                "volume": [1000] * 100,
+            }
+        )
 
     def test_buy_signal_opens_long_position(self):
         """买入信号应该开多仓"""
         assert self.manager.can_open_position("BTC/USDT")
-        
+
         position = self.manager.open_position(
             symbol="BTC/USDT",
             side=PositionSide.LONG,
@@ -72,7 +74,7 @@ class TestSignalToOpenPosition:
             entry_signal=TradingSignal.BUY,
             df=self.df,
         )
-        
+
         assert position is not None
         assert position.symbol == "BTC/USDT"
         assert position.side == PositionSide.LONG
@@ -93,7 +95,7 @@ class TestSignalToOpenPosition:
             entry_signal=TradingSignal.SELL,
             df=self.df,
         )
-        
+
         assert position is not None
         assert position.side == PositionSide.SHORT
         assert position.stop_loss > position.entry_price
@@ -112,7 +114,7 @@ class TestSignalToOpenPosition:
                 entry_signal=TradingSignal.BUY,
                 df=self.df,
             )
-        
+
         assert not self.manager.can_open_position("DOGE/USDT")
         assert self.manager.get_open_position_count() == 3
 
@@ -128,7 +130,7 @@ class TestSignalToOpenPosition:
             entry_signal=TradingSignal.BUY,
             df=self.df,
         )
-        
+
         assert not self.manager.can_open_position("BTC/USDT")
 
 
@@ -160,9 +162,9 @@ class TestStopLossTrigger:
             wyckoff_state="SOS",
             entry_signal=TradingSignal.BUY,
         )
-        
+
         result = self.executor.check_exit_conditions(position, 97.0)
-        
+
         assert result.should_exit
         assert result.reason == ExitReason.STOP_LOSS
 
@@ -180,9 +182,9 @@ class TestStopLossTrigger:
             wyckoff_state="LPSY",
             entry_signal=TradingSignal.SELL,
         )
-        
+
         result = self.executor.check_exit_conditions(position, 103.0)
-        
+
         assert result.should_exit
         assert result.reason == ExitReason.STOP_LOSS
 
@@ -200,9 +202,9 @@ class TestStopLossTrigger:
             wyckoff_state="SOS",
             entry_signal=TradingSignal.BUY,
         )
-        
+
         result = self.executor.check_exit_conditions(position, 102.0)
-        
+
         assert not result.should_exit
 
 
@@ -232,9 +234,9 @@ class TestTakeProfitTrigger:
             wyckoff_state="SOS",
             entry_signal=TradingSignal.BUY,
         )
-        
+
         result = self.executor.check_exit_conditions(position, 105.0)
-        
+
         assert result.should_exit
         assert result.reason == ExitReason.TAKE_PROFIT
 
@@ -252,9 +254,9 @@ class TestTakeProfitTrigger:
             wyckoff_state="LPSY",
             entry_signal=TradingSignal.SELL,
         )
-        
+
         result = self.executor.check_exit_conditions(position, 95.0)
-        
+
         assert result.should_exit
         assert result.reason == ExitReason.TAKE_PROFIT
 
@@ -284,14 +286,14 @@ class TestSignalReversalExit:
             wyckoff_state="SOS",
             entry_signal=TradingSignal.BUY,
         )
-        
+
         result = self.logic.should_exit_on_signal(
             position=position,
             new_signal=TradingSignal.SELL,
             new_wyckoff_state="UNKNOWN",
             confidence=0.7,
         )
-        
+
         assert result.should_exit
         assert result.reason == ExitReason.SIGNAL_REVERSAL
 
@@ -309,14 +311,14 @@ class TestSignalReversalExit:
             wyckoff_state="LPSY",
             entry_signal=TradingSignal.SELL,
         )
-        
+
         result = self.logic.should_exit_on_signal(
             position=position,
             new_signal=TradingSignal.BUY,
             new_wyckoff_state="UNKNOWN",
             confidence=0.7,
         )
-        
+
         assert result.should_exit
 
     def test_no_exit_on_low_confidence_signal(self):
@@ -333,14 +335,14 @@ class TestSignalReversalExit:
             wyckoff_state="SOS",
             entry_signal=TradingSignal.BUY,
         )
-        
+
         result = self.logic.should_exit_on_signal(
             position=position,
             new_signal=TradingSignal.SELL,
             new_wyckoff_state="UNKNOWN",
             confidence=0.4,
         )
-        
+
         assert not result.should_exit
 
     def test_exit_on_wyckoff_distribution(self):
@@ -357,14 +359,14 @@ class TestSignalReversalExit:
             wyckoff_state="SOS",
             entry_signal=TradingSignal.BUY,
         )
-        
+
         result = self.logic.should_exit_on_signal(
             position=position,
             new_signal=TradingSignal.NEUTRAL,
             new_wyckoff_state="LPSY",
             confidence=0.5,
         )
-        
+
         assert result.should_exit
 
 
@@ -390,14 +392,16 @@ class TestFullTradingCycle:
             },
         }
         self.manager = PositionManager(self.config)
-        
-        self.df = pd.DataFrame({
-            "open": [100] * 20,
-            "high": [105] * 20,
-            "low": [95] * 20,
-            "close": [100] * 20,
-            "volume": [1000] * 20,
-        })
+
+        self.df = pd.DataFrame(
+            {
+                "open": [100] * 20,
+                "high": [105] * 20,
+                "low": [95] * 20,
+                "close": [100] * 20,
+                "volume": [1000] * 20,
+            }
+        )
 
     def test_full_cycle_with_stop_loss(self):
         """完整周期：开仓 → 止损出场"""
@@ -411,24 +415,24 @@ class TestFullTradingCycle:
             entry_signal=TradingSignal.BUY,
             df=self.df,
         )
-        
+
         assert position is not None
         assert self.manager.get_position("BTC/USDT") is not None
-        
+
         exit_result = self.manager.update_position(
             symbol="BTC/USDT",
             current_price=position.stop_loss - 1,
         )
-        
+
         assert exit_result.should_exit
         assert exit_result.reason == ExitReason.STOP_LOSS
-        
+
         trade_result = self.manager.close_position(
             symbol="BTC/USDT",
             exit_price=position.stop_loss,
             reason=ExitReason.STOP_LOSS,
         )
-        
+
         assert trade_result is not None
         assert trade_result.pnl < 0
         assert self.manager.get_position("BTC/USDT") is None
@@ -445,21 +449,21 @@ class TestFullTradingCycle:
             entry_signal=TradingSignal.BUY,
             df=self.df,
         )
-        
+
         exit_result = self.manager.update_position(
             symbol="BTC/USDT",
             current_price=position.take_profit + 1,
         )
-        
+
         assert exit_result.should_exit
         assert exit_result.reason == ExitReason.TAKE_PROFIT
-        
+
         trade_result = self.manager.close_position(
             symbol="BTC/USDT",
             exit_price=position.take_profit,
             reason=ExitReason.TAKE_PROFIT,
         )
-        
+
         assert trade_result.pnl > 0
         assert trade_result.is_profitable
 
@@ -475,7 +479,7 @@ class TestFullTradingCycle:
             entry_signal=TradingSignal.BUY,
             df=self.df,
         )
-        
+
         exit_result = self.manager.update_position(
             symbol="BTC/USDT",
             current_price=101.0,
@@ -483,7 +487,7 @@ class TestFullTradingCycle:
             new_wyckoff_state="LPSY",
             signal_confidence=0.75,
         )
-        
+
         assert exit_result.should_exit
         assert exit_result.reason == ExitReason.SIGNAL_REVERSAL
 
@@ -500,21 +504,21 @@ class TestFullTradingCycle:
                 entry_signal=TradingSignal.BUY,
                 df=self.df,
             )
-            
+
             exit_price = 102.0 if i % 2 == 0 else 98.0
             reason = ExitReason.TAKE_PROFIT if i % 2 == 0 else ExitReason.STOP_LOSS
-            
+
             self.manager.close_position(
                 symbol=f"COIN{i}/USDT",
                 exit_price=exit_price,
                 reason=reason,
             )
-        
+
         stats = self.manager.get_statistics()
-        
+
         assert stats["total_trades"] == 3
         assert stats["winning_trades"] == 2
-        assert stats["win_rate"] == 2/3
+        assert stats["win_rate"] == 2 / 3
 
 
 class TestExchangeExecutor:
@@ -534,14 +538,14 @@ class TestExchangeExecutor:
 
     def test_simulate_order(self):
         """模拟下单"""
-        order = self.executor.place_order(
+        order = self.executor._place_order(
             symbol="BTC/USDT",
             side="buy",
             order_type="market",
             size=0.1,
             price=50000.0,
         )
-        
+
         assert order["id"].startswith("paper_")
         assert order["symbol"] == "BTC/USDT"
         assert order["side"] == "buy"
@@ -549,41 +553,41 @@ class TestExchangeExecutor:
 
     def test_get_paper_position(self):
         """获取模拟持仓"""
-        self.executor.place_order(
+        self.executor._place_order(
             symbol="BTC/USDT",
             side="buy",
             order_type="market",
             size=0.1,
             price=50000.0,
         )
-        
+
         position = self.executor.get_position("BTC/USDT")
-        
+
         assert position is not None
         assert position["side"] == PositionSide.LONG
 
     def test_get_balance(self):
         """获取余额"""
         balance = self.executor.get_balance()
-        
+
         assert balance["total"] == 10000.0
 
     def test_close_position(self):
         """平仓"""
-        self.executor.place_order(
+        self.executor._place_order(
             symbol="BTC/USDT",
             side="buy",
             order_type="market",
             size=0.1,
             price=50000.0,
         )
-        
+
         close_order = self.executor.close_position(
             symbol="BTC/USDT",
             side=PositionSide.LONG,
             size=0.1,
         )
-        
+
         assert close_order["side"] == "sell"
         assert self.executor.get_position("BTC/USDT") is None
 
@@ -606,14 +610,16 @@ class TestPositionManagerWithExecutor:
         }
         self.manager = PositionManager(self.config)
         self.executor = ExchangeExecutor({"paper_trading": True})
-        
-        self.df = pd.DataFrame({
-            "open": [100] * 20,
-            "high": [105] * 20,
-            "low": [95] * 20,
-            "close": [100] * 20,
-            "volume": [1000] * 20,
-        })
+
+        self.df = pd.DataFrame(
+            {
+                "open": [100] * 20,
+                "high": [105] * 20,
+                "low": [95] * 20,
+                "close": [100] * 20,
+                "volume": [1000] * 20,
+            }
+        )
 
     def test_open_position_via_executor(self):
         """通过执行器开仓"""
@@ -627,17 +633,17 @@ class TestPositionManagerWithExecutor:
             entry_signal=TradingSignal.BUY,
             df=self.df,
         )
-        
-        order = self.executor.place_order(
+
+        order = self.executor._place_order(
             symbol="BTC/USDT",
             side="buy",
             order_type="market",
             size=position.size,
             price=position.entry_price,
         )
-        
+
         assert order["status"] == "closed"
-        
+
         exec_position = self.executor.get_position("BTC/USDT")
         assert exec_position is not None
 
@@ -653,27 +659,27 @@ class TestPositionManagerWithExecutor:
             entry_signal=TradingSignal.BUY,
             df=self.df,
         )
-        
-        self.executor.place_order(
+
+        self.executor._place_order(
             symbol="BTC/USDT",
             side="buy",
             order_type="market",
             size=position.size,
             price=position.entry_price,
         )
-        
+
         exit_price = 51000.0
         trade_result = self.manager.close_position(
             symbol="BTC/USDT",
             exit_price=exit_price,
             reason=ExitReason.MANUAL,
         )
-        
+
         self.executor.close_position(
             symbol="BTC/USDT",
             side=PositionSide.LONG,
             size=position.size,
         )
-        
+
         assert trade_result.pnl > 0
         assert self.executor.get_position("BTC/USDT") is None

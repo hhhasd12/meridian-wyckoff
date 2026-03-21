@@ -1,0 +1,42 @@
+name: evolution_advisor
+version: "1.0.0"
+description: "进化顾问 AI Agent - LLM分析进化系统表现，提供优化建议"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: optional
+
+dependencies:
+  - evolution
+
+events:
+  publishes:
+    - advisor.analysis_complete
+  subscribes:
+    - evolution.cycle_complete
+
+config_schema:
+  provider:
+    type: string
+    default: "openai"
+    description: "LLM 提供者 (openai / ollama)"
+  model:
+    type: string
+    default: "gpt-4o-mini"
+    description: "LLM 模型名称"
+  api_key:
+    type: string
+    default: ""
+    description: "OpenAI API Key (也可通过 OPENAI_API_KEY 环境变量设置)"
+  ollama_url:
+    type: string
+    default: "http://localhost:11434"
+    description: "Ollama 服务地址"
+  enabled:
+    type: boolean
+    default: false
+    description: "是否启用 AI 顾问"
+  max_history:
+    type: int
+    default: 50
+    description: "保留的分析历史记录数量"

@@ -256,8 +256,9 @@ class MistakeBook:
         self.max_records = self.config.get("max_records", 10000)
         self.auto_cleanup_days = self.config.get("auto_cleanup_days", 30)
         self.min_learning_priority = self.config.get("min_learning_priority", 0.3)
+        # BUG-5 修复：从 0.7 降低到 0.15，让模式可以从少量样本中识别
         self.pattern_detection_threshold = self.config.get(
-            "pattern_detection_threshold", 0.7
+            "pattern_detection_threshold", 0.15
         )
 
         # 权重调整建议缓存
@@ -327,6 +328,64 @@ class MistakeBook:
 
         return record.error_id
 
+    def record_trade_mistake(
+        self,
+        side: str,
+        entry_price: float,
+        exit_price: float,
+        pnl: float,
+        pnl_pct: float,
+        hold_bars: int = 0,
+        exit_reason: str = "unknown",
+        entry_state: str = "unknown",
+        timeframe: str = "H4",
+    ) -> str:
+        """简化接口 — 从回测交易直接记录亏损
+
+        Args:
+            side: 交易方向 "LONG"/"SHORT"
+            entry_price: 入场价
+            exit_price: 出场价
+            pnl: 盈亏金额
+            pnl_pct: 盈亏百分比
+            hold_bars: 持仓K线数
+            exit_reason: 退出原因
+            entry_state: 入场时威科夫状态
+            timeframe: 时间框架
+
+        Returns:
+            错误ID
+        """
+        severity = ErrorSeverity.HIGH if abs(pnl_pct) > 0.03 else ErrorSeverity.MEDIUM
+        pattern = (
+            ErrorPattern.TIMING_ERROR
+            if abs(pnl_pct) < 0.01
+            else ErrorPattern.FREQUENT_FALSE_POSITIVE
+        )
+
+        return self.record_mistake(
+            mistake_type=MistakeType.ENTRY_VALIDATION_ERROR,
+            severity=severity,
+            context={
+                "side": side,
+                "entry_price": entry_price,
+                "exit_price": exit_price,
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+                "hold_bars": hold_bars,
+                "exit_reason": exit_reason,
+                "entry_state": entry_state,
+            },
+            expected="PROFIT",
+            actual=f"LOSS_{pnl:.2f}",
+            confidence_before=0.6,
+            confidence_after=0.3,
+            impact_score=min(abs(pnl_pct) * 10, 1.0),
+            module_name="evolution_backtester",
+            timeframe=timeframe,
+            patterns=[pattern],
+        )
+
     def _update_statistics(self, record: MistakeRecord) -> None:
         """更新统计信息"""
         self.stats["total_errors"] += 1
@@ -339,22 +398,24 @@ class MistakeBook:
         self.stats["learning_rate"] = learned_count / max(len(self.records), 1)
 
     def _auto_cleanup(self) -> None:
-        """自动清理旧记录"""
-        cutoff_date = datetime.now() - timedelta(days=self.auto_cleanup_days)
+        """自动清理旧记录
 
-        # 清理历史记录
-        self.record_history = [
-            r for r in self.record_history if r.timestamp >= cutoff_date
-        ]
+        BUG-11 修复：改为保留最近 max_records 条记录，而非按时间清理。
+        按时间清理会导致 30 天后错题本完全清空，系统回退到纯随机模式。
+        """
+        if len(self.record_history) <= self.max_records:
+            return
 
-        # 清理记录字典
-        old_ids = [
-            error_id
-            for error_id, record in self.records.items()
-            if record.timestamp < cutoff_date
-        ]
+        # 保留最近的 max_records 条
+        keep_records = self.record_history[-self.max_records :]
+        keep_ids = {r.error_id for r in keep_records}
+
+        # 清理记录字典中不在保留集中的记录
+        old_ids = [error_id for error_id in self.records if error_id not in keep_ids]
         for error_id in old_ids:
             del self.records[error_id]
+
+        self.record_history = keep_records
 
     def analyze_patterns(self, force_recompute: bool = False) -> dict[str, Any]:
         """
@@ -880,7 +941,6 @@ if __name__ == "__main__":
         timeframe="H4",
         patterns=[ErrorPattern.FREQUENT_FALSE_POSITIVE],
     )
-
 
     # 分析错误模式
     patterns = mistake_book.analyze_patterns()

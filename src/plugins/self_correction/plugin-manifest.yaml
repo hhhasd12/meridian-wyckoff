@@ -18,7 +18,6 @@ events:
     - self_correction.error_occurred
   subscribes:
     - evolution.cycle_completed
-    - orchestrator.evolution_cycle_completed
     - system.config_update
 
 config_schema:

@@ -23,7 +23,7 @@
 """
 
 import logging
-import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -325,8 +325,6 @@ def _is_valid_plugin_name(name: str) -> bool:
     if not name:
         return False
     # 允许小写字母、数字和下划线，不能以数字或下划线开头
-    import re
-
     return bool(re.match(r"^[a-z][a-z0-9_]*$", name))
 
 

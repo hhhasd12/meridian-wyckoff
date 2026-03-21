@@ -320,9 +320,20 @@ class ExchangeConnectorPlugin(BasePlugin):
                 self._last_error = str(e)
 
                 if attempt < self._max_retries - 1:
-                    time.sleep(
-                        self._retry_delay * (attempt + 1)
-                    )
+                    delay = self._retry_delay * (attempt + 1)
+                    # 检测是否在异步上下文中，避免阻塞事件循环
+                    try:
+                        loop = asyncio.get_running_loop()
+                        if loop.is_running():
+                            # 异步上下文中不应使用 time.sleep
+                            logger.warning(
+                                "在异步上下文中执行同步重试等待 %.1fs，"
+                                "建议使用 async_fetch_ohlcv()",
+                                delay,
+                            )
+                    except RuntimeError:
+                        pass  # 无事件循环，安全使用 time.sleep
+                    time.sleep(delay)
                     logger.warning(
                         "获取OHLCV重试 %d/%d: %s",
                         attempt + 1,

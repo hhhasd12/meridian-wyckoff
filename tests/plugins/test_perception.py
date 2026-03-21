@@ -65,12 +65,8 @@ class TestPerceptionPluginInit:
 class TestPerceptionPluginLifecycle:
     """生命周期测试"""
 
-    @patch(
-        "src.perception.fvg_detector.FVGDetector"
-    )
-    def test_on_load_creates_fvg_detector(
-        self, mock_fvg_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.fvg_detector.FVGDetector")
+    def test_on_load_creates_fvg_detector(self, mock_fvg_cls: MagicMock) -> None:
         """测试on_load创建FVG检测器"""
         mock_instance = MagicMock()
         mock_fvg_cls.return_value = mock_instance
@@ -81,12 +77,8 @@ class TestPerceptionPluginLifecycle:
         mock_fvg_cls.assert_called_once()
         assert plugin._fvg_detector is mock_instance
 
-    @patch(
-        "src.perception.fvg_detector.FVGDetector"
-    )
-    def test_on_load_resets_counters(
-        self, mock_fvg_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.fvg_detector.FVGDetector")
+    def test_on_load_resets_counters(self, mock_fvg_cls: MagicMock) -> None:
         """测试on_load重置计数器"""
         plugin = PerceptionPlugin()
         plugin._analysis_count = 10
@@ -99,12 +91,8 @@ class TestPerceptionPluginLifecycle:
         assert plugin._fvg_count == 0
         assert plugin._last_error is None
 
-    @patch(
-        "src.perception.fvg_detector.FVGDetector"
-    )
-    def test_on_unload_clears_resources(
-        self, mock_fvg_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.fvg_detector.FVGDetector")
+    def test_on_unload_clears_resources(self, mock_fvg_cls: MagicMock) -> None:
         """测试on_unload清理资源"""
         plugin = PerceptionPlugin()
         plugin.on_load()
@@ -127,12 +115,8 @@ class TestPerceptionPluginHealthCheck:
         result = plugin.health_check()
         assert result.status == HealthStatus.UNKNOWN
 
-    @patch(
-        "src.perception.fvg_detector.FVGDetector"
-    )
-    def test_health_check_active_healthy(
-        self, mock_fvg_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.fvg_detector.FVGDetector")
+    def test_health_check_active_healthy(self, mock_fvg_cls: MagicMock) -> None:
         """测试活跃且健康状态"""
         plugin = PerceptionPlugin()
         plugin.on_load()
@@ -141,12 +125,8 @@ class TestPerceptionPluginHealthCheck:
         result = plugin.health_check()
         assert result.status == HealthStatus.HEALTHY
 
-    @patch(
-        "src.perception.fvg_detector.FVGDetector"
-    )
-    def test_health_check_with_last_error(
-        self, mock_fvg_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.fvg_detector.FVGDetector")
+    def test_health_check_with_last_error(self, mock_fvg_cls: MagicMock) -> None:
         """测试有错误时返回DEGRADED"""
         plugin = PerceptionPlugin()
         plugin.on_load()
@@ -168,9 +148,7 @@ class TestPerceptionPluginHealthCheck:
 class TestPerceptionPluginConfigUpdate:
     """配置更新测试"""
 
-    @patch(
-        "src.perception.fvg_detector.FVGDetector"
-    )
+    @patch("src.plugins.perception.fvg_detector.FVGDetector")
     def test_config_update_recreates_fvg_detector(
         self, mock_fvg_cls: MagicMock
     ) -> None:
@@ -203,12 +181,8 @@ class TestPerceptionPluginAnalyzeCandle:
         with pytest.raises(RuntimeError, match="未加载.*K线"):
             plugin.analyze_candle(100, 110, 95, 105, 1000)
 
-    @patch(
-        "src.perception.candle_physical.CandlePhysical"
-    )
-    def test_analyze_candle_success(
-        self, mock_candle_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.candle_physical.CandlePhysical")
+    def test_analyze_candle_success(self, mock_candle_cls: MagicMock) -> None:
         """测试成功分析K线"""
         mock_candle = MagicMock()
         mock_candle.body = 5.0
@@ -229,12 +203,8 @@ class TestPerceptionPluginAnalyzeCandle:
         assert result["body_direction"] == 1
         assert plugin._analysis_count == 1
 
-    @patch(
-        "src.perception.candle_physical.CandlePhysical"
-    )
-    def test_analyze_candle_emits_event(
-        self, mock_candle_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.candle_physical.CandlePhysical")
+    def test_analyze_candle_emits_event(self, mock_candle_cls: MagicMock) -> None:
         """测试K线分析发布事件"""
         mock_candle = MagicMock()
         mock_candle.body = 5.0
@@ -289,9 +259,7 @@ class TestPerceptionPluginDetectFVG:
         plugin._fvg_detector = MagicMock()
         plugin._fvg_detector.detect_fvg_gaps.return_value = [mock_gap]
 
-        df = pd.DataFrame(
-            {"open": [100], "high": [110], "low": [95], "close": [105]}
-        )
+        df = pd.DataFrame({"open": [100], "high": [110], "low": [95], "close": [105]})
         gaps = plugin.detect_fvg(df)
 
         assert len(gaps) == 1
@@ -329,12 +297,8 @@ class TestPerceptionPluginPinBodyAnalysis:
         with pytest.raises(RuntimeError, match="未加载.*针vs实体"):
             plugin.analyze_pin_vs_body({"open": 100})
 
-    @patch(
-        "src.perception.pin_body_analyzer.analyze_pin_vs_body"
-    )
-    def test_pin_body_success(
-        self, mock_analyze: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.pin_body_analyzer.analyze_pin_vs_body")
+    def test_pin_body_success(self, mock_analyze: MagicMock) -> None:
         """测试成功分析针vs实体"""
         mock_result = MagicMock()
         mock_result.is_pin_dominant = True
@@ -349,8 +313,11 @@ class TestPerceptionPluginPinBodyAnalysis:
         plugin._fvg_detector = MagicMock()
 
         candle_dict = {
-            "open": 100, "high": 110, "low": 95,
-            "close": 105, "volume": 1000,
+            "open": 100,
+            "high": 110,
+            "low": 95,
+            "close": 105,
+            "volume": 1000,
         }
         result = plugin.analyze_pin_vs_body(candle_dict)
 
@@ -358,12 +325,8 @@ class TestPerceptionPluginPinBodyAnalysis:
         assert result.pin_strength == 0.8
         assert plugin._analysis_count == 1
 
-    @patch(
-        "src.perception.pin_body_analyzer.analyze_pin_vs_body"
-    )
-    def test_pin_body_emits_event(
-        self, mock_analyze: MagicMock
-    ) -> None:
+    @patch("src.plugins.perception.pin_body_analyzer.analyze_pin_vs_body")
+    def test_pin_body_emits_event(self, mock_analyze: MagicMock) -> None:
         """测试针vs实体分析发布事件"""
         mock_result = MagicMock()
         mock_result.is_pin_dominant = True

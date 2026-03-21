@@ -35,7 +35,11 @@ logger = logging.getLogger(__name__)
 from src.kernel.types import MutationType
 
 # 导入错题本模块
-from src.plugins.self_correction.mistake_book import ErrorPattern, ErrorSeverity, MistakeBook
+from src.plugins.self_correction.mistake_book import (
+    ErrorPattern,
+    ErrorSeverity,
+    MistakeBook,
+)
 
 
 class MutationOperator:
@@ -228,7 +232,6 @@ class ThresholdMutationOperator(MutationOperator):
 
         # 确保新值在合理范围内
         return max(new_value, 0.01)  # 最小1%
-
 
 
 class WeightMutationOperator(MutationOperator):
@@ -522,7 +525,7 @@ class WeightVariator:
         # 周期权重变异算子
         period_weight_operator = WeightMutationOperator(
             target_module="period_weight_filter",
-            parameters=["W", "D", "H4", "H1", "M15", "M5"],
+            parameters=["D1", "H4", "H1", "M15", "M5"],
             max_change=self.max_mutation_percent,
             weight_sum_constraint=True,
         )
@@ -626,8 +629,7 @@ class WeightVariator:
             )
             elites = sorted_pop[:elite_count]
             logger.info(
-                "保留 %d 个精英个体（最佳 fitness=%.4f），"
-                "重新生成 %d 个新个体",
+                "保留 %d 个精英个体（最佳 fitness=%.4f），重新生成 %d 个新个体",
                 len(elites),
                 elites[0].get("fitness", 0.0),
                 self.population_size - len(elites),
@@ -644,9 +646,7 @@ class WeightVariator:
             for i in range(len(elites), self.population_size):
                 # 随机选择一个精英作为变异基础
                 parent = random.choice(elites)
-                mutated_config = self._mutate_configuration(
-                    parent["config"]
-                )
+                mutated_config = self._mutate_configuration(parent["config"])
                 self.population.append(
                     {
                         "id": i,
@@ -660,9 +660,7 @@ class WeightVariator:
             return self.population
 
         # ---- 首次调用：从零生成种群 ----
-        logger.info(
-            "首次生成种群，population_size=%d", self.population_size
-        )
+        logger.info("首次生成种群，population_size=%d", self.population_size)
         self.population = []
 
         # 将基础配置作为第一个个体
@@ -733,20 +731,19 @@ class WeightVariator:
             new_population.append(elite_copy)
 
         next_id = len(new_population)
-        current_gen = max(
-            (ind.get("generation", 0) for ind in self.population),
-            default=0,
-        ) + 1
+        current_gen = (
+            max(
+                (ind.get("generation", 0) for ind in self.population),
+                default=0,
+            )
+            + 1
+        )
 
         # 2. 基于 weight_adjustments 偏置生成变异体
         if weight_adjustments:
-            for adj in weight_adjustments[
-                : self.population_size - len(new_population)
-            ]:
+            for adj in weight_adjustments[: self.population_size - len(new_population)]:
                 parent = random.choice(elites)
-                mutated_config = self._mutate_configuration(
-                    parent["config"]
-                )
+                mutated_config = self._mutate_configuration(parent["config"])
                 # 将 adjustment 作为偏置应用
                 self._apply_adjustment_bias(mutated_config, adj)
                 new_population.append(
@@ -802,13 +799,9 @@ class WeightVariator:
                 config, adjustment_value, source_patterns
             )
         elif "threshold" in module.lower():
-            self._apply_threshold_mutation(
-                config, adjustment_value, source_patterns
-            )
+            self._apply_threshold_mutation(config, adjustment_value, source_patterns)
         elif "regime" in module.lower():
-            self._apply_regime_mutation(
-                config, adjustment_value, source_patterns
-            )
+            self._apply_regime_mutation(config, adjustment_value, source_patterns)
 
     def _mutate_configuration(self, config: dict[str, Any]) -> dict[str, Any]:
         """变异配置"""
@@ -1120,6 +1113,24 @@ class WeightVariator:
             rank = len(sorted_pop) - i
             individual["fitness"] = rank / len(sorted_pop)
 
+    def update_fitness_from_wfa(self, wfa_scores: dict[int, float]) -> None:
+        """C6修复：将WFA验证分数回写到种群的fitness
+
+        Args:
+            wfa_scores: {population_index: wfa_composite_score} 映射
+        """
+        if not wfa_scores or not self.population:
+            return
+
+        for idx, score in wfa_scores.items():
+            if 0 <= idx < len(self.population):
+                self.population[idx]["performance"] = score
+                self.population[idx]["fitness"] = score
+
+        # 重新按排名分配fitness
+        self._calculate_fitness()
+        logger.info(f"WFA分数已回传到种群 ({len(wfa_scores)} 个个体更新)")
+
     def _selection(self) -> list[int]:
         """选择操作（锦标赛选择）"""
         selected_indices = []
@@ -1347,7 +1358,6 @@ if __name__ == "__main__":
 
     # 生成初始种群
     variator.generate_initial_population(base_config)
-
 
     # 模拟性能分数（在实际应用中来自WFA回测）
     performance_scores = {

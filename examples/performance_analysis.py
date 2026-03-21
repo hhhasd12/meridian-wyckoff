@@ -25,14 +25,16 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.plugins.market_regime.detector import RegimeDetector
-from src.perception.fvg_detector import FVGDetector
+from src.plugins.perception.fvg_detector import FVGDetector
 from src.plugins.pattern_detection.tr_detector import TRDetector
 from src.plugins.pattern_detection.curve_boundary import CurveBoundaryFitter
 from src.plugins.signal_validation.breakout_validator import BreakoutValidator
 from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
 from src.plugins.signal_validation.conflict_resolver import ConflictResolutionManager
 from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
-from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import WyckoffStateMachine
+from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
+    WyckoffStateMachine,
+)
 
 
 class PerformanceAnalyzer:

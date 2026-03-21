@@ -46,20 +46,12 @@ class RegimeDetector:
         self.config = config or {}
         self.atr_period: int = self.config.get("atr_period", 14)
         self.adx_period: int = self.config.get("adx_period", 14)
-        self.volatility_lookback: int = self.config.get(
-            "volatility_lookback", 20
-        )
-        self.trending_threshold: float = self.config.get(
-            "trending_threshold", 25.0
-        )
-        self.volatility_threshold: float = self.config.get(
-            "volatility_threshold", 1.5
-        )
+        self.volatility_lookback: int = self.config.get("volatility_lookback", 20)
+        self.trending_threshold: float = self.config.get("trending_threshold", 25.0)
+        self.volatility_threshold: float = self.config.get("volatility_threshold", 1.5)
 
         # 状态跟踪
-        self.regime_history: List[
-            Tuple[pd.Timestamp, MarketRegime, float]
-        ] = []
+        self.regime_history: List[Tuple[pd.Timestamp, MarketRegime, float]] = []
         self.current_regime = MarketRegime.UNKNOWN
         self.confidence = 0.0
 
@@ -134,9 +126,7 @@ class RegimeDetector:
 
         # 4. 计算ATR相对比率（当前ATR / 平均ATR）
         if metrics["atr_mean"] > 0:
-            metrics["atr_ratio"] = (
-                metrics["atr_current"] / metrics["atr_mean"]
-            )
+            metrics["atr_ratio"] = metrics["atr_current"] / metrics["atr_mean"]
         else:
             metrics["atr_ratio"] = 1.0
 
@@ -172,32 +162,21 @@ class RegimeDetector:
         low = df["low"]
         df["close"]
 
-        # 计算+DI和-DI（简化）
+        # 计算+DI和-DI（标准DMI算法）
         up_move = high.diff()
-        down_move = low.diff().abs() * -1
+        down_move = -low.diff()  # 低点下降时为正值（标准Wilder算法）
 
-        plus_dm = up_move.where(
-            (up_move > down_move) & (up_move > 0), 0
-        )
-        minus_dm = down_move.where(
-            (down_move > up_move) & (down_move > 0), 0
-        )
+        plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0)
+        minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0)
 
-        tr = self._calculate_atr(df) * np.sqrt(self.atr_period)  # 简化
+        tr = self._calculate_atr(df)  # ATR作为分母（标准做法）
 
-        plus_di = (
-            100 * plus_dm.rolling(window=self.adx_period).mean() / tr
-        )
-        minus_di = (
-            100 * minus_dm.rolling(window=self.adx_period).mean() / tr
-        )
+        plus_di = 100 * plus_dm.rolling(window=self.adx_period).mean() / tr
+        minus_di = 100 * minus_dm.rolling(window=self.adx_period).mean() / tr
 
         # DX
-        dx = (
-            100
-            * abs(plus_di - minus_di)
-            / (plus_di + minus_di).replace(0, np.nan)
-        )
+        di_sum = pd.Series(plus_di + minus_di).replace(0, np.nan)
+        dx = 100 * abs(plus_di - minus_di) / di_sum
 
         # ADX
         return dx.rolling(window=self.adx_period).mean()
@@ -205,13 +184,11 @@ class RegimeDetector:
     def _calculate_volatility(self, df: pd.DataFrame) -> pd.Series:
         """计算历史波动率（收盘价对数收益率的标准差）"""
         returns = np.log(df["close"] / df["close"].shift(1))
-        return returns.rolling(
-            window=self.volatility_lookback
-        ).std() * np.sqrt(252)  # 年化
+        return returns.rolling(window=self.volatility_lookback).std() * np.sqrt(
+            252
+        )  # 年化
 
-    def _judge_regime(
-        self, metrics: Dict
-    ) -> Tuple[MarketRegime, float, List[str]]:
+    def _judge_regime(self, metrics: Dict) -> Tuple[MarketRegime, float, List[str]]:
         """根据指标判断市场体制"""
         reasons: List[str] = []
         scores = {
@@ -227,15 +204,12 @@ class RegimeDetector:
             )  # ADX 25-50为中等趋势，>50为强趋势
             scores[MarketRegime.TRENDING] += trend_score * 0.7
             reasons.append(
-                f"ADX={metrics['adx_current']:.1f}"
-                f">={self.trending_threshold}，趋势明显"
+                f"ADX={metrics['adx_current']:.1f}>={self.trending_threshold}，趋势明显"
             )
 
         # 2. 高波动市判断
         if metrics["atr_ratio"] > self.volatility_threshold:
-            volatility_score = min(
-                (metrics["atr_ratio"] - 1.0) / 2.0, 1.0
-            )  # 1.5-3.5倍
+            volatility_score = min((metrics["atr_ratio"] - 1.0) / 2.0, 1.0)  # 1.5-3.5倍
             scores[MarketRegime.VOLATILE] += volatility_score * 0.8
             reasons.append(
                 f"ATR比率={metrics['atr_ratio']:.2f}"
@@ -243,28 +217,16 @@ class RegimeDetector:
             )
 
         # 3. 盘整市判断（默认情况）
-        if (
-            scores[MarketRegime.TRENDING] < 0.3
-            and scores[MarketRegime.VOLATILE] < 0.3
-        ):
-            if (
-                metrics["adx_current"] < 20
-                and 0.8 < metrics["atr_ratio"] < 1.2
-            ):
-                ranging_score = (
-                    20 - metrics["adx_current"]
-                ) / 20.0
+        if scores[MarketRegime.TRENDING] < 0.3 and scores[MarketRegime.VOLATILE] < 0.3:
+            if metrics["adx_current"] < 20 and 0.8 < metrics["atr_ratio"] < 1.2:
+                ranging_score = (20 - metrics["adx_current"]) / 20.0
                 scores[MarketRegime.RANGING] += ranging_score * 0.9
                 reasons.append(
-                    f"ADX={metrics['adx_current']:.1f}"
-                    f"<20且ATR比率正常，可能盘整"
+                    f"ADX={metrics['adx_current']:.1f}<20且ATR比率正常，可能盘整"
                 )
 
         # 4. 特殊情况：高波动趋势市
-        if (
-            scores[MarketRegime.TRENDING] > 0.5
-            and scores[MarketRegime.VOLATILE] > 0.5
-        ):
+        if scores[MarketRegime.TRENDING] > 0.5 and scores[MarketRegime.VOLATILE] > 0.5:
             reasons.append("高波动趋势市")
 
         # 确定最高分的体制
@@ -279,9 +241,7 @@ class RegimeDetector:
 
         # 计算置信度
         total_score = sum(scores.values())
-        confidence = (
-            best_score / total_score if total_score > 0 else 0.0
-        )
+        confidence = best_score / total_score if total_score > 0 else 0.0
 
         # 如果置信度过低，返回UNKNOWN
         if confidence < 0.4:
@@ -297,20 +257,12 @@ class RegimeDetector:
         self, n: int = 50
     ) -> List[Tuple[pd.Timestamp, MarketRegime, float]]:
         """获取最近N次体制判断历史"""
-        return (
-            self.regime_history[-n:]
-            if n > 0
-            else self.regime_history
-        )
+        return self.regime_history[-n:] if n > 0 else self.regime_history
 
     def get_current_regime(self) -> Dict:
         """获取当前体制"""
         return {
             "regime": self.current_regime,
             "confidence": self.confidence,
-            "timestamp": (
-                self.regime_history[-1][0]
-                if self.regime_history
-                else None
-            ),
+            "timestamp": (self.regime_history[-1][0] if self.regime_history else None),
         }

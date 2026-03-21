@@ -10,12 +10,14 @@ from src.kernel.types import TradingSignal
 
 class PositionSide(Enum):
     """持仓方向"""
+
     LONG = "long"
     SHORT = "short"
 
 
 class PositionStatus(Enum):
     """持仓状态"""
+
     OPEN = "open"
     CLOSED = "closed"
     LIQUIDATED = "liquidated"
@@ -23,6 +25,7 @@ class PositionStatus(Enum):
 
 class ExitReason(Enum):
     """出场原因"""
+
     STOP_LOSS = "stop_loss"
     TAKE_PROFIT = "take_profit"
     SIGNAL_REVERSAL = "signal_reversal"
@@ -36,6 +39,7 @@ class ExitReason(Enum):
 @dataclass
 class Position:
     """持仓信息"""
+
     symbol: str
     side: PositionSide
     size: float
@@ -46,19 +50,23 @@ class Position:
     signal_confidence: float
     wyckoff_state: str
     entry_signal: TradingSignal
+    original_size: float = 0.0  # 原始仓位大小（部分平仓基于此计算）
+    entry_atr: float = 0.0  # PM-C3: 入场时ATR，供trailing stop用真实波动率
     status: PositionStatus = PositionStatus.OPEN
     trailing_stop_activated: bool = False
     partial_profits_taken: List[float] = field(default_factory=list)
     highest_price: float = 0.0
-    lowest_price: float = float('inf')
+    lowest_price: float = float("inf")
     unrealized_pnl: float = 0.0
     unrealized_pnl_pct: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
+        if self.original_size == 0.0:
+            self.original_size = self.size
         if self.highest_price == 0.0:
             self.highest_price = self.entry_price
-        if self.lowest_price == float('inf'):
+        if self.lowest_price == float("inf"):
             self.lowest_price = self.entry_price
 
     def update_price_extremes(self, current_price: float) -> None:
@@ -74,7 +82,7 @@ class Position:
         else:
             pnl = (self.entry_price - current_price) * self.size
             pnl_pct = (self.entry_price - current_price) / self.entry_price
-        
+
         self.unrealized_pnl = pnl
         self.unrealized_pnl_pct = pnl_pct
         return pnl, pnl_pct
@@ -123,6 +131,7 @@ class Position:
 @dataclass
 class TradeResult:
     """交易结果"""
+
     symbol: str
     side: PositionSide
     entry_price: float
@@ -187,6 +196,7 @@ class TradeResult:
 @dataclass
 class ExitCheckResult:
     """出场检查结果"""
+
     should_exit: bool
     reason: Optional[ExitReason] = None
     new_stop_loss: Optional[float] = None

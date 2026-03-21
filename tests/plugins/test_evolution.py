@@ -1,4 +1,8 @@
-"""进化系统插件测试"""
+"""进化系统插件测试
+
+注意: archivist 已在 v3.0 Phase 0 删除。
+archivist 相关测试已移除，Phase 4 重建进化系统时会新增完整测试。
+"""
 
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
@@ -43,47 +47,17 @@ class TestEvolutionPluginLoadUnload:
         """初始化测试"""
         self.plugin = EvolutionPlugin()
 
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_on_load_default_config(self, mock_storage_cls, mock_cls):
-        """测试默认配置加载"""
-        mock_cls.return_value = MagicMock()
-        mock_storage_cls.return_value = MagicMock()
+    def test_on_load(self):
+        """测试加载（archivist已移除，on_load应为pass）"""
         self.plugin.on_load()
-        assert self.plugin._archivist is not None
-        mock_cls.assert_called_once()
+        # archivist 已移除，on_load 不再初始化它
+        assert self.plugin._archivist is None
 
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_on_load_with_config(self, mock_storage_cls, mock_cls):
-        """测试带配置加载"""
-        mock_cls.return_value = MagicMock()
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin._config = {
-            "archivist": {
-                "storage_path": "/tmp/test.jsonl",
-                "max_queue_size": 500,
-            }
-        }
-        self.plugin.on_load()
-        mock_cls.assert_called_once_with(config={
-            "storage_path": "/tmp/test.jsonl",
-            "max_queue_size": 500,
-        })
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_on_unload(self, mock_storage_cls, mock_cls):
+    def test_on_unload(self):
         """测试卸载"""
-        mock_archivist = MagicMock()
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-        self.plugin._last_error = "some error"
-
         self.plugin.on_unload()
         assert self.plugin._archivist is None
-        mock_archivist.stop.assert_called_once()
+        assert self.plugin.is_running is False
 
     def test_on_unload_when_not_loaded(self):
         """测试未加载时卸载"""
@@ -116,200 +90,6 @@ class TestEvolutionHealthCheck:
         result = self.plugin.health_check()
         assert result.status == HealthStatus.UNHEALTHY
         assert "未激活" in result.message
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_health_check_active_healthy(self, mock_storage_cls, mock_cls):
-        """测试激活且健康"""
-        mock_archivist = MagicMock()
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-        self.plugin._state = PluginState.ACTIVE
-
-        result = self.plugin.health_check()
-        assert result.status == HealthStatus.HEALTHY
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_health_check_with_error(self, mock_storage_cls, mock_cls):
-        """测试有错误时健康检查"""
-        mock_archivist = MagicMock()
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-        self.plugin._state = PluginState.ACTIVE
-        self.plugin._last_error = "测试错误"
-
-        result = self.plugin.health_check()
-        assert result.status == HealthStatus.DEGRADED
-
-    def test_health_check_archivist_none(self):
-        """测试档案员为None"""
-        self.plugin._state = PluginState.ACTIVE
-        result = self.plugin.health_check()
-        assert result.status == HealthStatus.UNHEALTHY
-        assert "未初始化" in result.message
-
-
-class TestEvolutionStartStop:
-    """测试启动和停止"""
-
-    def setup_method(self):
-        """初始化测试"""
-        self.plugin = EvolutionPlugin()
-
-    def test_start_archivist_not_loaded(self):
-        """测试未加载时启动档案员"""
-        with pytest.raises(RuntimeError, match="档案员未初始化"):
-            self.plugin.start_archivist()
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_start_archivist_success(self, mock_storage_cls, mock_cls):
-        """测试成功启动档案员"""
-        mock_archivist = MagicMock()
-        mock_archivist.storage_path = "/tmp/test.jsonl"
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-
-        self.plugin.start_archivist()
-        mock_archivist.start.assert_called_once()
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_stop_archivist_success(self, mock_storage_cls, mock_cls):
-        """测试成功停止档案员"""
-        mock_archivist = MagicMock()
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-
-        self.plugin.stop_archivist()
-        mock_archivist.stop.assert_called_once()
-
-
-class TestEvolutionRecordLog:
-    """测试记录日志"""
-
-    def setup_method(self):
-        """初始化测试"""
-        self.plugin = EvolutionPlugin()
-
-    def test_record_log_not_loaded(self):
-        """测试未加载时记录"""
-        result = self.plugin.record_log(MagicMock())
-        assert result is False
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_record_log_success(self, mock_storage_cls, mock_cls):
-        """测试成功记录"""
-        mock_archivist = MagicMock()
-        mock_archivist.record_log.return_value = True
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-
-        mock_log = MagicMock()
-        mock_log.event_type.value = "weight_adjustment"
-        mock_log.module = "test_module"
-        mock_log.parameter = "test_param"
-
-        result = self.plugin.record_log(mock_log)
-        assert result is True
-        assert self.plugin._record_count == 1
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_record_log_queue_full(self, mock_storage_cls, mock_cls):
-        """测试队列满时记录"""
-        mock_archivist = MagicMock()
-        mock_archivist.record_log.return_value = False
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-
-        result = self.plugin.record_log(MagicMock())
-        assert result is False
-        assert self.plugin._record_count == 0
-
-
-class TestEvolutionQueryHistory:
-    """测试历史查询"""
-
-    def setup_method(self):
-        """初始化测试"""
-        self.plugin = EvolutionPlugin()
-
-    def test_query_not_loaded(self):
-        """测试未加载时查询"""
-        results = self.plugin.query_history("测试查询")
-        assert results == []
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_query_success(self, mock_storage_cls, mock_cls):
-        """测试成功查询"""
-        mock_archivist = MagicMock()
-        mock_log = MagicMock()
-        mock_archivist.query_history.return_value = [
-            (mock_log, 0.95),
-        ]
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-
-        results = self.plugin.query_history("为什么调整RSI阈值？")
-        assert len(results) == 1
-        assert results[0][1] == 0.95
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_query_empty_result(self, mock_storage_cls, mock_cls):
-        """测试空结果查询"""
-        mock_archivist = MagicMock()
-        mock_archivist.query_history.return_value = []
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-
-        results = self.plugin.query_history("不存在的查询")
-        assert len(results) == 0
-
-
-class TestEvolutionStatistics:
-    """测试统计信息"""
-
-    def setup_method(self):
-        """初始化测试"""
-        self.plugin = EvolutionPlugin()
-
-    def test_plugin_statistics_initial(self):
-        """测试初始统计"""
-        stats = self.plugin.get_statistics()
-        assert stats["record_count"] == 0
-        assert stats["last_error"] is None
-        assert stats["is_evolving"] is False
-        assert stats["cycle_count"] == 0
-
-    @patch("src.plugins.evolution.archivist.EvolutionArchivist")
-    @patch("src.storage.evolution_storage.EvolutionStorage")
-    def test_plugin_statistics_after_ops(self, mock_storage_cls, mock_cls):
-        """测试操作后统计"""
-        mock_archivist = MagicMock()
-        mock_cls.return_value = mock_archivist
-        mock_storage_cls.return_value = MagicMock()
-        self.plugin.on_load()
-        self.plugin._record_count = 10
-        self.plugin._is_evolving = True
-        self.plugin._cycle_count = 5
-
-        stats = self.plugin.get_statistics()
-        assert stats["record_count"] == 10
-        assert stats["is_evolving"] is True
-        assert stats["cycle_count"] == 5
 
 
 class TestEvolutionStatus:
@@ -389,3 +169,19 @@ class TestEvolutionStartStopEvolution:
         """测试未运行时停止进化"""
         result = await self.plugin.stop_evolution()
         assert result["status"] == "already_stopped"
+
+
+class TestEvolutionStatistics:
+    """测试统计信息"""
+
+    def setup_method(self):
+        """初始化测试"""
+        self.plugin = EvolutionPlugin()
+
+    def test_plugin_statistics_initial(self):
+        """测试初始统计"""
+        stats = self.plugin.get_statistics()
+        assert stats["record_count"] == 0
+        assert stats["last_error"] is None
+        assert stats["is_evolving"] is False
+        assert stats["cycle_count"] == 0

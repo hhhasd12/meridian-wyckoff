@@ -206,8 +206,6 @@ class WyckoffApp:
                     orchestrator.request_stop()
                     logger.info("已通过 request_stop() 通知 orchestrator 停止")
                 elif hasattr(orchestrator, "stop_system"):
-                    import asyncio
-
                     if asyncio.iscoroutinefunction(orchestrator.stop_system):
                         await orchestrator.stop_system()
                     else:
@@ -247,8 +245,8 @@ class WyckoffApp:
             包含系统运行状态的字典
         """
         plugin_statuses: Dict[str, str] = {}
-        for name, info in self.plugin_manager._plugin_infos.items():
-            plugin_statuses[name] = info.state.value
+        for info in self.plugin_manager.list_plugins():
+            plugin_statuses[info.name] = info.state.value
 
         return {
             "is_running": self._is_running,

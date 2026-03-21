@@ -7,7 +7,7 @@
 4. 健康检查
 
 核心逻辑复用 src/plugins/self_correction/workflow.py 中的
-SelfCorrectionWorkflow 类。
+SelfCorrectionWorkflow 类（使用 GeneticAlgorithm + WFAValidator + StandardEvaluator）。
 """
 
 import logging
@@ -45,21 +45,25 @@ class SelfCorrectionPlugin(BasePlugin):
         self._last_correction_time: Optional[datetime] = None
 
     def on_load(self) -> None:
-        """加载插件：初始化 SelfCorrectionWorkflow 并订阅事件"""
+        """加载插件：初始化 SelfCorrectionWorkflow 并订阅事件
+
+        Raises:
+            PluginError: 当核心 Workflow 模块无法导入时
+        """
         try:
             from src.plugins.self_correction.workflow import (
                 SelfCorrectionWorkflow,
             )
 
-            self._workflow = SelfCorrectionWorkflow(
-                config=self._config
-            )
-        except ImportError:
-            self._logger.warning(
-                "SelfCorrectionWorkflow 导入失败，"
-                "插件将以降级模式运行"
-            )
-            self._workflow = None
+            self._workflow = SelfCorrectionWorkflow(config=self._config)
+        except ImportError as e:
+            self._logger.error("SelfCorrectionWorkflow 导入失败: %s", e)
+            from src.kernel.types import PluginError
+
+            raise PluginError(
+                f"核心 Workflow 模块导入失败: {e}",
+                plugin_name=self._name,
+            ) from e
 
         self._correction_count = 0
         self._last_error = None
@@ -88,9 +92,7 @@ class SelfCorrectionPlugin(BasePlugin):
         self._last_correction_time = None
         self._logger.info("SelfCorrectionPlugin 已卸载")
 
-    def on_config_update(
-        self, new_config: Dict[str, Any]
-    ) -> None:
+    def on_config_update(self, new_config: Dict[str, Any]) -> None:
         """配置热更新"""
         self._config = new_config
         if self._workflow is not None:
@@ -99,16 +101,10 @@ class SelfCorrectionPlugin(BasePlugin):
                     SelfCorrectionWorkflow,
                 )
 
-                self._workflow = SelfCorrectionWorkflow(
-                    config=new_config
-                )
-                self._logger.info(
-                    "SelfCorrectionPlugin 配置已热更新"
-                )
+                self._workflow = SelfCorrectionWorkflow(config=new_config)
+                self._logger.info("SelfCorrectionPlugin 配置已热更新")
             except ImportError:
-                self._logger.warning(
-                    "配置更新时 SelfCorrectionWorkflow 导入失败"
-                )
+                self._logger.warning("配置更新时 SelfCorrectionWorkflow 导入失败")
 
     def health_check(self) -> HealthCheckResult:
         """健康检查"""
@@ -136,10 +132,7 @@ class SelfCorrectionPlugin(BasePlugin):
 
         return HealthCheckResult(
             status=HealthStatus.HEALTHY,
-            message=(
-                f"运行正常，已执行 {self._correction_count} "
-                f"次纠错"
-            ),
+            message=(f"运行正常，已执行 {self._correction_count} 次纠错"),
         )
 
     # ---- 事件处理器 ----
@@ -187,9 +180,7 @@ class SelfCorrectionPlugin(BasePlugin):
             纠错结果字典
         """
         if self._workflow is None:
-            self._logger.warning(
-                "SelfCorrectionWorkflow 未初始化，跳过纠错"
-            )
+            self._logger.warning("SelfCorrectionWorkflow 未初始化，跳过纠错")
             return {
                 "success": False,
                 "error": "workflow_not_initialized",
@@ -218,9 +209,7 @@ class SelfCorrectionPlugin(BasePlugin):
                 self.emit_event(
                     "self_correction.correction_applied",
                     {
-                        "correction_count": (
-                            self._correction_count
-                        ),
+                        "correction_count": (self._correction_count),
                         "changes": result.get("changes", {}),
                     },
                 )
@@ -238,9 +227,7 @@ class SelfCorrectionPlugin(BasePlugin):
                 "self_correction.error_occurred",
                 {
                     "error": str(e),
-                    "correction_count": (
-                        self._correction_count
-                    ),
+                    "correction_count": (self._correction_count),
                 },
             )
             return {"success": False, "error": str(e)}
@@ -256,7 +243,14 @@ class SelfCorrectionPlugin(BasePlugin):
                 else None
             ),
             "enabled": self._config.get("enabled", True),
-            "workflow_initialized": (
-                self._workflow is not None
-            ),
+            "workflow_initialized": (self._workflow is not None),
         }
+
+    def set_historical_data(self, data: Dict[str, Any]) -> None:
+        """设置历史数据供 GA+WFA 使用
+
+        Args:
+            data: 多TF数据字典 {"H4": df, "H1": df, ...}
+        """
+        if self._workflow is not None:
+            self._workflow.set_historical_data(data)

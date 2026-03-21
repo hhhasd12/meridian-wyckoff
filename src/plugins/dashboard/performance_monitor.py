@@ -27,11 +27,11 @@ import numpy as np
 
 # 导入相关模块
 try:
-    from .mistake_book import MistakeBook
-    from .weight_variator import WeightVariator
-    from .wfa_backtester import WFABacktester
+    from src.plugins.self_correction.mistake_book import MistakeBook
+    from src.plugins.evolution.weight_variator_legacy import WeightVariator
+    from src.plugins.evolution.wfa_backtester import WFABacktester
 except ImportError:
-    # 备用导入
+    # 备用导入：这些模块可能未安装
     pass
 
 
@@ -1077,7 +1077,6 @@ if __name__ == "__main__":
 
     for module_name, health_info in dashboard["module_health"].items():
         pass
-
 
     # 获取健康报告
     health_report = monitor.get_health_report()

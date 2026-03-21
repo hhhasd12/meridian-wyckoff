@@ -23,13 +23,39 @@
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_timestamp_to_iso(timestamp: Any) -> str:
+    """安全地将时间戳转换为 ISO 格式字符串
+
+    自动判断 int64 时间戳是秒还是毫秒：
+    - 值 > 1e12 视为毫秒（如 1700000000000）
+    - 值 <= 1e12 视为秒（如 1700000000）
+
+    Args:
+        timestamp: datetime 对象或 int/int64 时间戳
+
+    Returns:
+        ISO 格式时间戳字符串
+    """
+    if isinstance(timestamp, (int, np.integer)):
+        ts_float = float(timestamp)
+        # 自动判断：大于 1e12 视为毫秒，否则视为秒
+        if ts_float > 1e12:
+            ts_float /= 1000.0
+        timestamp_dt = datetime.fromtimestamp(ts_float, tz=timezone.utc)
+        return timestamp_dt.isoformat()
+    elif isinstance(timestamp, datetime):
+        return timestamp.isoformat()
+    else:
+        return str(timestamp)
 
 
 class PluginState(Enum):
@@ -162,15 +188,11 @@ class PluginError(Exception):
         message: 异常描述信息
     """
 
-    def __init__(
-        self, message: str, plugin_name: Optional[str] = None
-    ) -> None:
+    def __init__(self, message: str, plugin_name: Optional[str] = None) -> None:
         self.plugin_name = plugin_name
         self.message = message
         super().__init__(
-            f"[Plugin: {plugin_name}] {message}"
-            if plugin_name
-            else message
+            f"[Plugin: {plugin_name}] {message}" if plugin_name else message
         )
 
 
@@ -221,7 +243,7 @@ class ManifestValidationError(PluginError):
 
 
 # 类型别名，方便其他模块引用
-EventCallback = Any  # Callable[[str, Dict[str, Any]], None]
+EventCallback = Callable[[str, Dict[str, Any]], None]
 ConfigDict = Dict[str, Any]
 
 
@@ -318,14 +340,8 @@ class DecisionContext:
         """
         logger.debug("Converting DecisionContext to dict")
 
-        # 修复：时间戳可能是int64类型，需要转换为ISO格式字符串
-        if isinstance(self.timestamp, (int, np.integer)):
-            timestamp_dt = datetime.fromtimestamp(
-                float(self.timestamp) / 1000.0
-            )
-            timestamp_str = timestamp_dt.isoformat()
-        else:
-            timestamp_str = self.timestamp.isoformat()
+        # 修复：时间戳可能是int64类型，自动判断秒/毫秒
+        timestamp_str = _safe_timestamp_to_iso(self.timestamp)
 
         return {
             "timestamp": timestamp_str,
@@ -333,11 +349,7 @@ class DecisionContext:
             "regime_confidence": self.regime_confidence,
             "timeframe_weights": self.timeframe_weights,
             "detected_conflicts": self.detected_conflicts,
-            "wyckoff_state": (
-                str(self.wyckoff_state)
-                if self.wyckoff_state
-                else None
-            ),
+            "wyckoff_state": (str(self.wyckoff_state) if self.wyckoff_state else None),
             "wyckoff_confidence": self.wyckoff_confidence,
             "breakout_status": self.breakout_status,
             "fvg_signals": self.fvg_signals,
@@ -370,7 +382,7 @@ class TradingDecision:
     take_profit: Optional[float] = None
     position_size: Optional[float] = None
     reasoning: List[str] = field(default_factory=list)
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典
@@ -380,14 +392,8 @@ class TradingDecision:
         """
         logger.debug("Converting TradingDecision to dict")
 
-        # 修复：时间戳可能是int64类型，需要转换为ISO格式字符串
-        if isinstance(self.timestamp, (int, np.integer)):
-            timestamp_dt = datetime.fromtimestamp(
-                float(self.timestamp) / 1000.0
-            )
-            timestamp_str = timestamp_dt.isoformat()
-        else:
-            timestamp_str = self.timestamp.isoformat()
+        # 修复：时间戳可能是int64类型，自动判断秒/毫秒
+        timestamp_str = _safe_timestamp_to_iso(self.timestamp)
 
         return {
             "signal": self.signal.value,
@@ -580,11 +586,7 @@ class StateConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
-        return {
-            k: v
-            for k, v in self.__dict__.items()
-            if not k.startswith("_")
-        }
+        return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
     def update_from_dict(self, config_dict: Dict[str, Any]) -> None:
         """从字典更新配置"""
@@ -609,3 +611,324 @@ class MutationType(Enum):
     PARAMETER_TUNING = "PARAMETER_TUNING"  # 参数调优
     STRUCTURAL_CHANGE = "STRUCTURAL_CHANGE"  # 结构性改变
     COEFFICIENT_ADJUSTMENT = "COEFFICIENT_ADJUSTMENT"  # 系数调整
+
+
+# ============================================================
+# v3.0 新增：统一信号链类型
+# 替代 Dict[str, Any] 的散装字典，实现类型安全的全链路传递
+# ============================================================
+
+
+@dataclass
+class TradingRangeInfo:
+    """TR检测结果"""
+
+    has_range: bool
+    support: Optional[float]
+    resistance: Optional[float]
+    confidence: float
+    breakout_direction: Optional[str] = None  # "UP" | "DOWN" | None
+    resonance_score: float = 0.0  # 多TF共振分数
+
+
+@dataclass
+class FVGSignal:
+    """FVG信号"""
+
+    direction: str  # "BULLISH" | "BEARISH"
+    gap_top: float
+    gap_bottom: float
+    fill_ratio: float
+    timestamp: Optional[datetime] = None
+
+
+@dataclass
+class BreakoutInfo:
+    """突破验证结果"""
+
+    is_valid: bool
+    direction: int  # 1=向上, -1=向下, 0=无
+    breakout_level: float
+    breakout_strength: float
+    volume_confirmation: bool
+
+
+@dataclass
+class PinBodySummary:
+    """针体分析汇总"""
+
+    dominant_pattern: str  # "PIN" | "BODY" | "NEUTRAL"
+    avg_pin_strength: float
+    avg_body_strength: float
+    avg_confidence: float
+
+
+@dataclass
+class CandlePhysicalStats:
+    """K线物理属性统计"""
+
+    avg_body_size: float
+    avg_shadow_size: float
+    avg_body_ratio: float
+    doji_pct: float
+    hammer_pct: float
+    shooting_star_pct: float
+
+
+@dataclass
+class AnomalyEvent:
+    """异常事件"""
+
+    event_type: str
+    severity: float
+    description: str
+    timestamp: Optional[datetime] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class PerceptionResult:
+    """感知层输出 — 替代 Dict[str, Any] 的散装字典"""
+
+    market_regime: str  # "TRENDING" | "RANGING" | "VOLATILE" | "UNKNOWN"
+    regime_confidence: float  # 0.0~1.0
+    trading_range: Optional[TradingRangeInfo]
+    fvg_signals: List[FVGSignal]
+    breakout_status: Optional[BreakoutInfo]
+    pin_body_summary: Optional[PinBodySummary]
+    candle_physical: Optional[CandlePhysicalStats]
+    anomaly_events: List[AnomalyEvent]
+    timestamp: Optional[datetime] = None
+
+
+@dataclass
+class TimeframeConflict:
+    """时间框架冲突"""
+
+    higher_tf: str
+    higher_bias: str
+    lower_tf: str
+    lower_bias: str
+    resolution: str  # "follow_higher" | "reduce_size" | "wait"
+    confidence_penalty: float
+
+
+@dataclass
+class EntryValidation:
+    """微观入场验证"""
+
+    is_valid: bool
+    entry_grade: str  # "A" | "B" | "C" | "D"
+    m15_confirmation: bool
+    m5_confirmation: bool
+    optimal_entry_zone: Optional[float] = None
+
+
+@dataclass
+class FusionResult:
+    """多周期融合输出"""
+
+    timeframe_weights: Dict[str, float]
+    conflicts: List[TimeframeConflict]
+    resolved_bias: str  # "BULLISH" | "BEARISH" | "NEUTRAL"
+    entry_validation: Optional[EntryValidation]
+    timestamp: Optional[datetime] = None
+
+
+@dataclass
+class WyckoffStateResult:
+    """状态机输出"""
+
+    current_state: str
+    phase: str  # "A" | "B" | "C" | "D" | "E" | "IDLE"
+    direction: StateDirection
+    confidence: float
+    intensity: float
+    evidences: List[StateEvidence]
+    signal: WyckoffSignal
+    signal_strength: str  # "strong" | "medium" | "weak" | "none"
+    state_changed: bool
+    previous_state: Optional[str]
+    heritage_score: float
+    critical_levels: Dict[str, float] = field(
+        default_factory=dict
+    )  # SC_LOW, BC_HIGH, etc.
+
+
+# ============================================================
+# v3.0 新增：进化系统类型
+# ============================================================
+
+
+@dataclass
+class BarSignal:
+    """逐K线信号 — WyckoffEngine 逐bar产出"""
+
+    bar_index: int
+    timestamp: Optional[datetime]
+    signal: TradingSignal
+    confidence: float
+    wyckoff_state: str
+    phase: str
+    evidences: List[StateEvidence]
+    entry_price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+
+
+@dataclass
+class BacktestTrade:
+    """回测交易记录"""
+
+    entry_bar: int
+    exit_bar: int
+    entry_price: float
+    exit_price: float
+    side: str  # "LONG" | "SHORT"
+    size: float
+    pnl: float
+    pnl_pct: float
+    exit_reason: str
+    hold_bars: int
+    entry_state: str
+    max_favorable: float  # 最大有利偏移
+    max_adverse: float  # 最大不利偏移
+
+
+@dataclass
+class BacktestResult:
+    """回测结果"""
+
+    trades: List[BacktestTrade]
+    total_return: float
+    sharpe_ratio: float
+    max_drawdown: float
+    win_rate: float
+    profit_factor: float
+    total_trades: int
+    avg_hold_bars: float
+    config_hash: str  # 配置指纹
+
+
+@dataclass
+class GAIndividual:
+    """遗传算法个体"""
+
+    config: Dict[str, Any]
+    fitness: float
+    generation: int
+    config_hash: str
+    backtest_result: Optional[BacktestResult] = None
+
+
+@dataclass
+class WFAWindow:
+    """WFA滚动窗口"""
+
+    train_start: int  # bar索引
+    train_end: int
+    test_start: int
+    test_end: int
+    train_result: Optional[BacktestResult] = None
+    test_result: Optional[BacktestResult] = None
+
+
+# ================================================================
+# 订单与执行相关类型（Phase 3 新增）
+# ================================================================
+
+
+class OrderSide(Enum):
+    """订单方向"""
+
+    BUY = "buy"
+    SELL = "sell"
+
+
+class OrderType(Enum):
+    """订单类型"""
+
+    MARKET = "market"
+    LIMIT = "limit"
+
+
+class OrderStatus(Enum):
+    """订单状态"""
+
+    NEW = "new"
+    PARTIAL = "partial"
+    FILLED = "filled"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
+    ERROR = "error"
+
+
+@dataclass
+class OrderRequest:
+    """订单请求
+
+    Attributes:
+        symbol: 交易对
+        side: 买卖方向
+        order_type: 订单类型
+        size: 下单数量
+        price: 价格（限价单必填，市价单可选）
+        stop_loss: 止损价格
+        take_profit: 止盈价格
+        leverage: 杠杆倍数
+        metadata: 附加信息（如信号来源、置信度）
+    """
+
+    symbol: str
+    side: OrderSide
+    order_type: OrderType
+    size: float
+    price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    leverage: int = 1
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class OrderResult:
+    """订单执行结果
+
+    Attributes:
+        order_id: 订单ID
+        status: 订单状态
+        filled_size: 已成交数量
+        filled_price: 成交均价
+        timestamp: 成交时间
+        raw: 交易所原始返回
+        error: 错误信息（仅在失败时）
+    """
+
+    order_id: str
+    status: OrderStatus
+    filled_size: float
+    filled_price: float
+    timestamp: datetime
+    raw: Dict[str, Any] = field(default_factory=dict)
+    error: Optional[str] = None
+
+    @property
+    def is_filled(self) -> bool:
+        """是否完全成交"""
+        return self.status == OrderStatus.FILLED
+
+    @property
+    def is_error(self) -> bool:
+        """是否执行失败"""
+        return self.status in (OrderStatus.ERROR, OrderStatus.REJECTED)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "order_id": self.order_id,
+            "status": self.status.value,
+            "filled_size": self.filled_size,
+            "filled_price": self.filled_price,
+            "timestamp": self.timestamp.isoformat(),
+            "error": self.error,
+        }

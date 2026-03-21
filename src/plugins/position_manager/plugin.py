@@ -1,13 +1,45 @@
-"""仓位管理插件 - 插件入口"""
+"""仓位管理插件 v3 — 接通 ExchangeExecutor + PositionJournal
+
+核心改动（Phase 3）：
+1. 持有 ExchangeExecutor — 通过 execute(OrderRequest) 实际下单
+2. 集成 PositionJournal — 每次仓位变化写盘，崩溃恢复
+3. _on_trading_signal 接收完整 TradingDecision（由 Orchestrator 发布）
+4. 启动时从 PositionJournal 恢复 open positions
+
+事件流：
+    trading.signal → _on_trading_signal()
+        → 检查信号/仓位 → 生成 OrderRequest
+        → ExchangeExecutor.execute() → OrderResult
+        → PositionJournal 记录
+        → position.opened / position.closed 事件
+"""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
 from src.kernel.base_plugin import BasePlugin
-from src.kernel.types import HealthCheckResult, HealthStatus, TradingSignal
-from src.plugins.position_manager.position_manager import PositionManager
+from src.kernel.types import (
+    HealthCheckResult,
+    HealthStatus,
+    OrderRequest,
+    OrderResult,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TradingDecision,
+    TradingSignal,
+)
+from src.plugins.exchange_connector.exchange_executor import (
+    ExchangeExecutor,
+)
+from src.plugins.position_manager.position_journal import (
+    PositionJournal,
+)
+from src.plugins.position_manager.position_manager import (
+    PositionManager,
+)
 from src.plugins.position_manager.types import (
     ExitCheckResult,
     ExitReason,
@@ -20,51 +52,94 @@ logger = logging.getLogger(__name__)
 
 
 class PositionManagerPlugin(BasePlugin):
-    """仓位管理插件
-    
+    """仓位管理插件 v3
+
     功能：
-    1. 管理持仓生命周期
-    2. 止损止盈执行
-    3. 信号反转出场
-    4. 交易记录管理
-    
+    1. 管理持仓生命周期（开仓/平仓/部分平仓）
+    2. 通过 ExchangeExecutor 实际执行交易
+    3. 通过 PositionJournal 持久化仓位状态
+    4. 启动时从 journal 恢复 open positions
+    5. 止损止盈执行 + 信号反转出场
+
     事件：
+    - 订阅：trading.signal, market.price_update, system.shutdown
     - 发布：position.opened, position.closed, position.updated
-    - 订阅：trading.signal, market.price_update
     """
 
     def __init__(self, name: str = "position_manager") -> None:
         super().__init__(name)
         self._manager: Optional[PositionManager] = None
+        self._executor: Optional[ExchangeExecutor] = None
+        self._journal: Optional[PositionJournal] = None
         self._open_count: int = 0
         self._close_count: int = 0
         self._update_count: int = 0
         self._last_error: Optional[str] = None
 
     def on_load(self) -> None:
-        """加载插件"""
+        """加载插件：初始化 PositionManager/Executor/Journal"""
         config = self._config or {}
-        
+
+        # 初始化仓位管理器
         self._manager = PositionManager(config)
-        
+
+        # 初始化交易执行器
+        executor_config = config.get("executor", {})
+        executor_config.setdefault("paper_trading", config.get("paper_trading", True))
+        executor_config.setdefault(
+            "initial_balance",
+            config.get("initial_balance", 10000.0),
+        )
+        self._executor = ExchangeExecutor(executor_config)
+        self._executor.connect()
+
+        # 初始化持仓日志
+        journal_path = config.get("journal_path", "./data/position_journal.jsonl")
+        self._journal = PositionJournal(journal_path)
+
+        # 从日志恢复持仓
+        self._recover_positions()
+
+        # 订阅事件
         self.subscribe_event("trading.signal", self._on_trading_signal)
         self.subscribe_event("market.price_update", self._on_price_update)
         self.subscribe_event("system.shutdown", self._on_shutdown)
-        
-        logger.info("仓位管理插件加载完成")
+
+        logger.info("仓位管理插件 v3 加载完成")
+
+    def _recover_positions(self) -> None:
+        """从 PositionJournal 恢复持仓"""
+        if self._journal is None or self._manager is None:
+            return
+
+        recovered = self._journal.recover_positions()
+        if not recovered:
+            return
+
+        for symbol, position in recovered.items():
+            self._manager.positions[symbol] = position
+            logger.info(
+                "恢复持仓: %s %s %.4f @ %.2f",
+                symbol,
+                position.side.value,
+                position.size,
+                position.entry_price,
+            )
+
+        logger.info("从日志恢复 %d 个持仓", len(recovered))
 
     def on_unload(self) -> None:
         """卸载插件"""
         if self._manager:
             positions = self._manager.get_all_positions()
             if positions:
-                logger.warning(f"卸载时仍有 {len(positions)} 个持仓未关闭")
-        
+                logger.warning(
+                    "卸载时仍有 %d 个持仓未关闭",
+                    len(positions),
+                )
         self._manager = None
-        self._open_count = 0
-        self._close_count = 0
-        self._update_count = 0
-        self._last_error = None
+        self._executor = None
+        self._journal = None
         logger.info("仓位管理插件已卸载")
 
     def on_config_update(self, new_config: Dict[str, Any]) -> None:
@@ -73,113 +148,102 @@ class PositionManagerPlugin(BasePlugin):
             self._manager = PositionManager(new_config)
             logger.info("仓位管理插件配置已更新")
 
-    def health_check(self) -> HealthCheckResult:
-        """健康检查"""
-        if self._manager is None:
-            return HealthCheckResult(
-                status=HealthStatus.UNHEALTHY,
-                message="PositionManager not initialized",
-                details={"error": self._last_error},
-            )
-        
-        stats = self._manager.get_statistics()
-        open_positions = self._manager.get_open_position_count()
-        
-        return HealthCheckResult(
-            status=HealthStatus.HEALTHY,
-            message=f"PositionManager running, {open_positions} open positions",
-            details={
-                "open_positions": open_positions,
-                "total_trades": stats["total_trades"],
-                "win_rate": stats["win_rate"],
-                "total_pnl": stats["total_pnl"],
-                "open_count": self._open_count,
-                "close_count": self._close_count,
-            },
-        )
+    # ================================================================
+    # 核心事件处理
+    # ================================================================
 
     def _on_trading_signal(self, event_name: str, data: Dict[str, Any]) -> None:
-        """处理交易信号事件"""
+        """处理交易信号事件
+
+        由 OrchestratorPlugin 发布的 trading.signal 事件触发。
+        data 中包含:
+        - symbol: 交易对
+        - signal: TradingSignal 枚举
+        - confidence: 置信度
+        - decision: TradingDecision 对象
+        - df: 主时间框架 DataFrame（可选）
+        - wyckoff_state: 威科夫状态
+        """
         try:
             symbol = data.get("symbol")
             signal = data.get("signal")
             confidence = data.get("confidence", 0.0)
             wyckoff_state = data.get("wyckoff_state", "")
-            price = data.get("price", 0.0)
             df = data.get("df")
-            
+            decision: Optional[TradingDecision] = data.get("decision")
+
             if not symbol or not signal:
                 return
-            
+
+            # 从 decision 中提取更多信息
+            entry_price = data.get("entry_price", 0.0)
+            stop_loss_hint = data.get("stop_loss")
+            take_profit_hint = data.get("take_profit")
+
+            if decision:
+                entry_price = decision.entry_price or entry_price
+                stop_loss_hint = decision.stop_loss or stop_loss_hint
+                take_profit_hint = decision.take_profit or take_profit_hint
+
+            # 如果没有价格，跳过
+            if not entry_price or entry_price <= 0:
+                logger.debug("信号无入场价格，跳过: %s", symbol)
+                return
+
+            # 检查现有持仓
+            if self._manager is None:
+                return
+
             position = self._manager.get_position(symbol)
-            
+
             if position:
-                exit_result = self._manager.update_position(
-                    symbol=symbol,
-                    current_price=price,
-                    new_signal=signal,
-                    new_wyckoff_state=wyckoff_state,
-                    signal_confidence=confidence,
+                # 已有持仓 — 检查是否需要退出
+                self._check_signal_exit(
+                    symbol,
+                    position,
+                    signal,
+                    wyckoff_state,
+                    confidence,
+                    entry_price,
                 )
-                
-                if exit_result and exit_result.should_exit:
-                    self._execute_exit(symbol, price, exit_result)
             else:
-                if signal in [TradingSignal.BUY, TradingSignal.STRONG_BUY]:
+                # 无持仓 — 检查是否开仓
+                if signal in (
+                    TradingSignal.BUY,
+                    TradingSignal.STRONG_BUY,
+                ):
                     self._try_open_position(
-                        symbol, PositionSide.LONG, price, confidence,
-                        wyckoff_state, signal, df, data
+                        symbol,
+                        PositionSide.LONG,
+                        entry_price,
+                        confidence,
+                        wyckoff_state,
+                        signal,
+                        df,
+                        data,
+                        stop_loss_hint,
+                        take_profit_hint,
                     )
-                elif signal in [TradingSignal.SELL, TradingSignal.STRONG_SELL]:
+                elif signal in (
+                    TradingSignal.SELL,
+                    TradingSignal.STRONG_SELL,
+                ):
                     self._try_open_position(
-                        symbol, PositionSide.SHORT, price, confidence,
-                        wyckoff_state, signal, df, data
+                        symbol,
+                        PositionSide.SHORT,
+                        entry_price,
+                        confidence,
+                        wyckoff_state,
+                        signal,
+                        df,
+                        data,
+                        stop_loss_hint,
+                        take_profit_hint,
                     )
-                    
+
         except Exception as e:
             self._last_error = str(e)
-            logger.exception(f"处理交易信号失败: {e}")
-
-    def _on_price_update(self, event_name: str, data: Dict[str, Any]) -> None:
-        """处理价格更新事件"""
-        try:
-            symbol = data.get("symbol")
-            price = data.get("price")
-            
-            if not symbol or not price:
-                return
-            
-            position = self._manager.get_position(symbol)
-            if not position:
-                return
-            
-            exit_result = self._manager.update_position(
-                symbol=symbol,
-                current_price=price,
-            )
-            
-            if exit_result:
-                if exit_result.should_exit:
-                    self._execute_exit(symbol, price, exit_result)
-                elif exit_result.partial_close_ratio:
-                    self._execute_partial_close(symbol, price, exit_result)
-                    
-        except Exception as e:
-            self._last_error = str(e)
-            logger.exception(f"处理价格更新失败: {e}")
-
-    def _on_shutdown(self, event_name: str, data: Dict[str, Any]) -> None:
-        """处理系统关闭事件"""
-        logger.info("系统关闭，平仓所有持仓...")
-        
-        if self._manager:
-            positions = self._manager.get_all_positions()
-            exit_prices = {
-                symbol: pos.entry_price
-                for symbol, pos in positions.items()
-            }
-            results = self._manager.force_close_all(exit_prices)
-            logger.info(f"已平仓 {len(results)} 个持仓")
+            logger.exception("处理交易信号失败: %s", e)
 
     def _try_open_position(
         self,
@@ -191,20 +255,30 @@ class PositionManagerPlugin(BasePlugin):
         signal: TradingSignal,
         df: Optional[pd.DataFrame],
         data: Dict[str, Any],
+        stop_loss_hint: Optional[float],
+        take_profit_hint: Optional[float],
     ) -> None:
-        """尝试开仓"""
-        if not self._manager.can_open_position(symbol):
-            logger.debug(f"无法开仓 {symbol}: 已有持仓或达到最大持仓数")
+        """尝试开仓 — 通过 ExchangeExecutor 执行"""
+        if self._manager is None or self._executor is None:
             return
-        
+
+        if not self._manager.can_open_position(symbol):
+            logger.debug("无法开仓 %s: 已有持仓或达到上限", symbol)
+            return
+
         min_confidence = self._config.get("min_confidence", 0.65)
         if confidence < min_confidence:
-            logger.debug(f"置信度不足 {confidence:.2f} < {min_confidence}")
+            logger.debug(
+                "置信度不足 %.2f < %.2f",
+                confidence,
+                min_confidence,
+            )
             return
-        
-        account_balance = data.get("account_balance", 10000.0)
-        
-        if df is not None and len(df) > 0:
+
+        # 计算止损
+        if stop_loss_hint:
+            stop_loss = stop_loss_hint
+        elif df is not None and len(df) > 0:
             stop_loss = self._manager.stop_loss_executor.calculate_stop_loss(
                 entry_price=price,
                 side=side,
@@ -212,32 +286,127 @@ class PositionManagerPlugin(BasePlugin):
             )
         else:
             stop_loss = price * 0.98 if side == PositionSide.LONG else price * 1.02
-        
+
+        # 计算仓位大小
+        account_balance = data.get(
+            "account_balance",
+            self._executor.get_balance_total(),
+        )
         size = self._manager.calculate_position_size(
             account_balance=account_balance,
             entry_price=price,
             stop_loss=stop_loss,
         )
-        
         if size <= 0:
-            logger.warning(f"仓位大小计算失败: {symbol}")
+            logger.warning("仓位大小计算为0: %s", symbol)
             return
-        
+
+        # 通过 ExchangeExecutor 下单
+        order_side = OrderSide.BUY if side == PositionSide.LONG else OrderSide.SELL
+        request = OrderRequest(
+            symbol=symbol,
+            side=order_side,
+            order_type=OrderType.MARKET,
+            size=size,
+            price=price,
+            stop_loss=stop_loss,
+            take_profit=take_profit_hint,
+            metadata={
+                "signal": signal.value,
+                "confidence": confidence,
+                "wyckoff_state": wyckoff_state,
+            },
+        )
+
+        result = self._executor.execute(request)
+
+        if result.is_error:
+            logger.error(
+                "开仓执行失败: %s error=%s",
+                symbol,
+                result.error,
+            )
+            return
+
+        # 执行成功 — 记录到 PositionManager
+        filled_price = result.filled_price or price
+        filled_size = result.filled_size or size
+
+        # 计算止盈
+        take_profit = take_profit_hint
+        if not take_profit:
+            risk = abs(filled_price - stop_loss)
+            if side == PositionSide.LONG:
+                take_profit = filled_price + risk * 2.0
+            else:
+                take_profit = filled_price - risk * 2.0
+
         position = self._manager.open_position(
             symbol=symbol,
             side=side,
-            size=size,
-            entry_price=price,
+            size=filled_size,
+            entry_price=filled_price,
             signal_confidence=confidence,
             wyckoff_state=wyckoff_state,
             entry_signal=signal,
-            df=df,
-            metadata={"account_balance": account_balance},
+            df=df if df is not None else pd.DataFrame(),
+            metadata={
+                "order_id": result.order_id,
+                "account_balance": account_balance,
+            },
         )
-        
+
         if position:
             self._open_count += 1
+            # 记录到日志
+            if self._journal:
+                self._journal.record_open(position)
             self.emit_event("position.opened", position.to_dict())
+            logger.info(
+                "开仓成功: %s %s %.4f @ %.2f (order_id=%s)",
+                symbol,
+                side.value,
+                filled_size,
+                filled_price,
+                result.order_id,
+            )
+
+    def _check_signal_exit(
+        self,
+        symbol: str,
+        position: Position,
+        signal: TradingSignal,
+        wyckoff_state: str,
+        confidence: float,
+        current_price: float,
+    ) -> None:
+        """检查是否需要信号反转退出"""
+        if self._manager is None:
+            return
+
+        exit_result = self._manager.update_position(
+            symbol=symbol,
+            current_price=current_price,
+            new_signal=signal,
+            new_wyckoff_state=wyckoff_state,
+            signal_confidence=confidence,
+        )
+
+        if exit_result and exit_result.should_exit:
+            self._execute_exit(symbol, current_price, exit_result)
+        elif exit_result and exit_result.partial_close_ratio:
+            self._execute_partial_close(symbol, current_price, exit_result)
+
+        # 记录更新到日志
+        if self._journal:
+            self._journal.record_update(
+                symbol,
+                {
+                    "current_price": current_price,
+                    "signal": signal.value,
+                    "wyckoff_state": wyckoff_state,
+                },
+            )
 
     def _execute_exit(
         self,
@@ -245,21 +414,56 @@ class PositionManagerPlugin(BasePlugin):
         price: float,
         exit_result: ExitCheckResult,
     ) -> None:
-        """执行平仓"""
+        """执行平仓 — 通过 ExchangeExecutor"""
+        if self._manager is None or self._executor is None:
+            return
+
+        position = self._manager.get_position(symbol)
+        if not position:
+            return
+
         reason = exit_result.reason or ExitReason.MANUAL
-        
-        result = self._manager.close_position(
+
+        # 通过 ExchangeExecutor 执行平仓
+        close_side = (
+            OrderSide.SELL if position.side == PositionSide.LONG else OrderSide.BUY
+        )
+        request = OrderRequest(
             symbol=symbol,
-            exit_price=price,
+            side=close_side,
+            order_type=OrderType.MARKET,
+            size=position.size,
+            price=price,
+            metadata={"exit_reason": reason.value},
+        )
+        order_result = self._executor.execute(request)
+
+        if order_result.is_error:
+            logger.error(
+                "平仓执行失败: %s error=%s",
+                symbol,
+                order_result.error,
+            )
+            return
+
+        # 记录平仓
+        trade_result = self._manager.close_position(
+            symbol=symbol,
+            exit_price=order_result.filled_price or price,
             reason=reason,
         )
-        
-        if result:
+
+        if trade_result:
             self._close_count += 1
-            self.emit_event("position.closed", result.to_dict())
+            if self._journal:
+                self._journal.record_close(symbol, trade_result)
+            self.emit_event("position.closed", trade_result.to_dict())
             logger.info(
-                f"持仓已平仓: {symbol} reason={reason.value} "
-                f"pnl={result.pnl:.2f} ({result.pnl_pct*100:.2f}%)"
+                "平仓成功: %s reason=%s pnl=%.2f (%.2f%%)",
+                symbol,
+                reason.value,
+                trade_result.pnl,
+                trade_result.pnl_pct * 100,
             )
 
     def _execute_partial_close(
@@ -270,81 +474,107 @@ class PositionManagerPlugin(BasePlugin):
     ) -> None:
         """执行部分平仓"""
         ratio = exit_result.partial_close_ratio
-        if not ratio:
+        if not ratio or self._manager is None:
             return
-        
+
         result = self._manager.close_position(
             symbol=symbol,
             exit_price=price,
             reason=ExitReason.PARTIAL_PROFIT,
             partial_ratio=ratio,
         )
-        
+
         if result:
-            self.emit_event("position.partial_close", {
-                **result.to_dict(),
-                "remaining_size": self._manager.get_position(symbol).size if self._manager.get_position(symbol) else 0,
-            })
+            pos = self._manager.get_position(symbol)
+            self.emit_event(
+                "position.partial_close",
+                {
+                    **result.to_dict(),
+                    "remaining_size": (pos.size if pos else 0),
+                },
+            )
             logger.info(
-                f"部分平仓: {symbol} ratio={ratio*100:.0f}% "
-                f"pnl={result.pnl:.2f}"
+                "部分平仓: %s ratio=%.0f%% pnl=%.2f",
+                symbol,
+                ratio * 100,
+                result.pnl,
             )
 
-    def open_position(
-        self,
-        symbol: str,
-        side: PositionSide,
-        size: float,
-        entry_price: float,
-        signal_confidence: float,
-        wyckoff_state: str,
-        entry_signal: TradingSignal,
-        df: Optional[pd.DataFrame] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Position]:
-        """手动开仓接口"""
-        if not self._manager:
-            return None
-        
-        position = self._manager.open_position(
-            symbol=symbol,
-            side=side,
-            size=size,
-            entry_price=entry_price,
-            signal_confidence=signal_confidence,
-            wyckoff_state=wyckoff_state,
-            entry_signal=entry_signal,
-            df=df,
-            metadata=metadata,
-        )
-        
-        if position:
-            self._open_count += 1
-            self.emit_event("position.opened", position.to_dict())
-        
-        return position
+    def _on_price_update(self, event_name: str, data: Dict[str, Any]) -> None:
+        """处理价格更新事件"""
+        try:
+            symbol = data.get("symbol")
+            price = data.get("price")
 
-    def close_position(
-        self,
-        symbol: str,
-        exit_price: float,
-        reason: ExitReason = ExitReason.MANUAL,
-    ) -> Optional[TradeResult]:
-        """手动平仓接口"""
-        if not self._manager:
-            return None
-        
-        result = self._manager.close_position(
-            symbol=symbol,
-            exit_price=exit_price,
-            reason=reason,
+            if not symbol or not price:
+                return
+
+            if self._manager is None:
+                return
+
+            position = self._manager.get_position(symbol)
+            if not position:
+                return
+
+            exit_result = self._manager.update_position(
+                symbol=symbol,
+                current_price=price,
+            )
+
+            if exit_result:
+                if exit_result.should_exit:
+                    self._execute_exit(symbol, price, exit_result)
+                elif exit_result.partial_close_ratio:
+                    self._execute_partial_close(symbol, price, exit_result)
+
+        except Exception as e:
+            self._last_error = str(e)
+            logger.exception("处理价格更新失败: %s", e)
+
+    def _on_shutdown(self, event_name: str, data: Dict[str, Any]) -> None:
+        """处理系统关闭事件"""
+        logger.info("系统关闭，平仓所有持仓...")
+
+        if self._manager:
+            positions = self._manager.get_all_positions()
+            exit_prices = {symbol: pos.entry_price for symbol, pos in positions.items()}
+            results = self._manager.force_close_all(exit_prices)
+            logger.info("已平仓 %d 个持仓", len(results))
+
+    # ================================================================
+    # 健康检查
+    # ================================================================
+
+    def health_check(self) -> HealthCheckResult:
+        """健康检查"""
+        if self._manager is None:
+            return HealthCheckResult(
+                status=HealthStatus.UNHEALTHY,
+                message="PositionManager not initialized",
+                details={"error": self._last_error},
+            )
+
+        stats = self._manager.get_statistics()
+        open_positions = self._manager.get_open_position_count()
+
+        return HealthCheckResult(
+            status=HealthStatus.HEALTHY,
+            message=(f"PositionManager running, {open_positions} open positions"),
+            details={
+                "open_positions": open_positions,
+                "total_trades": stats["total_trades"],
+                "win_rate": stats["win_rate"],
+                "total_pnl": stats["total_pnl"],
+                "open_count": self._open_count,
+                "close_count": self._close_count,
+                "executor_connected": (self._executor is not None),
+                "journal_active": (self._journal is not None),
+            },
         )
-        
-        if result:
-            self._close_count += 1
-            self.emit_event("position.closed", result.to_dict())
-        
-        return result
+
+    # ================================================================
+    # 公共 API（保持向后兼容）
+    # ================================================================
 
     def get_position(self, symbol: str) -> Optional[Position]:
         """获取持仓"""
@@ -364,19 +594,16 @@ class PositionManagerPlugin(BasePlugin):
             return {}
         return self._manager.get_statistics()
 
-    def get_trade_history(self, limit: int = 100) -> list:
-        """获取交易历史（供API调用）
-
-        Args:
-            limit: 返回记录数量限制
-
-        Returns:
-            List: 交易历史列表
-        """
+    def get_trade_history(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """获取交易历史"""
         if not self._manager:
             return []
-        
-        history = self._manager.trade_history[-limit:] if hasattr(self._manager, 'trade_history') else []
+
+        history = (
+            self._manager.trade_history[-limit:]
+            if hasattr(self._manager, "trade_history")
+            else []
+        )
         return [
             {
                 "symbol": t.symbol,
@@ -392,40 +619,3 @@ class PositionManagerPlugin(BasePlugin):
             }
             for t in history
         ]
-
-    def get_performance_by_day(self, days: int = 7) -> Dict[str, Any]:
-        """获取按日统计的性能数据（供API调用）
-
-        Args:
-            days: 统计天数
-
-        Returns:
-            Dict: 包含data和labels的字典
-        """
-        if not self._manager or not hasattr(self._manager, 'trade_history'):
-            return {"data": [], "labels": []}
-        
-        from datetime import datetime, timedelta
-        from collections import defaultdict
-        
-        history = self._manager.trade_history
-        if not history:
-            return {"data": [], "labels": []}
-        
-        daily_pnl = defaultdict(float)
-        today = datetime.now().date()
-        
-        for trade in history:
-            trade_date = trade.exit_time.date()
-            days_ago = (today - trade_date).days
-            if days_ago < days:
-                daily_pnl[trade_date] += trade.pnl_pct * 100
-        
-        data = []
-        labels = []
-        for i in range(days - 1, -1, -1):
-            date = today - timedelta(days=i)
-            data.append(daily_pnl.get(date, 0))
-            labels.append(date.strftime('%m-%d'))
-        
-        return {"data": data, "labels": labels}

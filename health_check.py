@@ -208,14 +208,6 @@ def check_src_modules(report: HealthReport):
 
     # (模块路径, 必须能导入, 必须存在的类/函数)
     MODULE_CHECKS = [
-        # ── data ──
-        ("src.data.loader", True, ["DataLoader"]),
-        ("src.data.cleaner", True, []),
-        ("src.data.feature_factory", True, []),
-        ("src.data.binance_fetcher", False, []),  # 可选（需要网络）
-        # ── backtest ──
-        ("src.backtest.engine", True, ["BacktestEngine", "BacktestResult", "Trade"]),
-        ("src.backtest.reporter", True, ["BacktestReporter"]),
         # ── core (migrated to plugins) ──
         (
             "src.plugins.self_correction.mistake_book",
@@ -427,12 +419,11 @@ def check_e2e_import_chain(report: HealthReport):
     模拟 run_evolution.py 的完整 import 链，捕获任何运行时错误
     """
     chain = [
-        ("src.data.loader", "DataLoader"),
         ("src.plugins.self_correction.workflow", "SelfCorrectionWorkflow"),
         ("src.plugins.self_correction.mistake_book", "MistakeBook"),
         ("src.plugins.evolution.weight_variator_legacy", "WeightVariator"),
         ("src.plugins.evolution.wfa_backtester", "WFABacktester"),
-        ("src.backtest.engine", "BacktestEngine"),
+        ("src.plugins.agent_teams.backtest.engine", "BacktestEngine"),
     ]
 
     all_ok = True

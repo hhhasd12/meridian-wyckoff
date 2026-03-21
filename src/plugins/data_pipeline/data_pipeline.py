@@ -7,6 +7,7 @@
 import asyncio
 import contextlib
 import json
+import logging
 import pickle
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -19,6 +20,8 @@ import numpy as np
 import pandas as pd
 import redis
 import yfinance as yf
+
+logger = logging.getLogger(__name__)
 
 
 class DataSource(Enum):
@@ -156,7 +159,8 @@ class DataPipeline:
                 )
                 # 测试连接
                 self._redis_client.ping()
-            except Exception:
+            except Exception as e:
+                logger.warning("Redis连接失败，已禁用缓存: %s", e)
                 self._redis_client = None
                 self.enable_cache = False
 
@@ -214,11 +218,14 @@ class DataPipeline:
             if client:
                 cached = client.get(cache_key)
                 if cached:
-                    data = pickle.loads(cached)  # type: ignore[arg-type]
+                    # 安全注意: pickle.loads 存在任意代码执行风险
+                    # 仅在受信任的内部 Redis 环境中使用
+                    # TODO: 考虑迁移到 pyarrow 或 msgpack 序列化
+                    data = pickle.loads(cached)  # type: ignore[arg-type]  # nosec B301
                     self.cache_stats["hits"] += 1
                     return data
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("从缓存读取数据失败, cache_key=%s: %s", cache_key, e)
 
         self.cache_stats["misses"] += 1
         return None
@@ -234,8 +241,8 @@ class DataPipeline:
                 pickled = pickle.dumps(data)
                 client.setex(cache_key, self.cache_ttl, pickled)
                 self.cache_stats["writes"] += 1
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("缓存数据写入失败, cache_key=%s: %s", cache_key, e)
 
     async def fetch_ccxt_data(self, request: DataRequest) -> pd.DataFrame:
         """从CCXT获取加密货币数据"""
@@ -562,7 +569,8 @@ class DataPipeline:
                             age = age_delta.total_seconds()
                         else:
                             age = float(age_delta) / 1e9
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("缓存数据年龄计算失败: %s", e)
                         age = float('inf')
 
                     # 根据时间框架确定最大缓存年龄
@@ -610,7 +618,14 @@ class DataPipeline:
 
             return df
 
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "数据获取失败, symbol=%s, source=%s, timeframe=%s: %s",
+                request.symbol,
+                request.source.value,
+                request.timeframe.value,
+                e,
+            )
             return pd.DataFrame()
 
     async def fetch_custom_api_data(self, request: DataRequest) -> pd.DataFrame:
@@ -784,7 +799,8 @@ class DataPipeline:
 
             return df
 
-        except Exception:
+        except Exception as e:
+            logger.warning("自定义API JSON数据解析失败: %s", e)
             return pd.DataFrame()
 
     def _parse_custom_api_csv(
@@ -858,7 +874,8 @@ class DataPipeline:
 
             return df
 
-        except Exception:
+        except Exception as e:
+            logger.warning("自定义API CSV数据解析失败: %s", e)
             return pd.DataFrame()
 
     async def fetch_multiple_timeframes(
@@ -1016,8 +1033,13 @@ class DataPipeline:
                     if col in resampled.columns:
                         base_df[f"{col}_{tf.value}"] = resampled[col]
 
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "时间框架 %s 数据重采样到 %s 失败: %s",
+                    tf.value,
+                    target_timeframe.value,
+                    e,
+                )
 
         return base_df
 

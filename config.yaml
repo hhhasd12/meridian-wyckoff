@@ -58,7 +58,6 @@ orchestrator:
 # 运行参数配置
 # ============================================================================
 processing_interval: 60          # 数据处理间隔（秒）
-evolution_interval: 3600         # 进化间隔（秒）
 health_report_interval: 3600     # 健康报告间隔（秒）
 use_real_data: true              # 使用真实数据
 symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
@@ -235,7 +234,6 @@ plugins:
     symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
     timeframes: ["H4", "H1", "M15"]
     data_refresh_interval: 60
-    evolution_interval: 3600
     cycle_interval: 60
   exchange_connector:
     exchange: "binance"

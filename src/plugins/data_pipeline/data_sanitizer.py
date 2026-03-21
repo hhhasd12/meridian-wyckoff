@@ -414,7 +414,10 @@ class DataSanitizer:
             return {"type": "NORMAL", "score": 0.0, "severity": AnomalySeverity.INFO}
 
         gap_percent = abs(candle.open - context.previous_close) / context.previous_close
-        atr_multiple = gap_percent / context.atr14 if context.atr14 > 0 else 0
+        gap_abs = abs(candle.open - context.previous_close)  # 价格绝对值
+        atr_multiple = (
+            gap_abs / context.atr14 if context.atr14 > 0 else 0
+        )  # 同单位（价格/价格）
 
         if atr_multiple > self.config.MAX_GAP_ATR_MULTIPLE:
             return {
@@ -549,12 +552,8 @@ class DataSanitizer:
         # 如果circuit_breaker模块可用，也触发它
         if self.circuit_breaker:
             try:
-                self.circuit_breaker.trip(
-                    "data_sanitizer",
-                    {
-                        "reason": anomaly_event.event_category,
-                        "market_type": self.market_type.value,
-                    },
+                self.circuit_breaker.manual_trip(
+                    f"data_sanitizer: {anomaly_event.event_category} ({self.market_type.value})"
                 )
             except Exception as e:
                 warnings.warn(f"无法触发外部熔断器: {e}")
@@ -572,7 +571,7 @@ class DataSanitizer:
         # 如果circuit_breaker模块可用，也恢复它
         if self.circuit_breaker:
             try:
-                self.circuit_breaker.recover("data_sanitizer", {"recovery": True})
+                self.circuit_breaker.manual_recover()
             except Exception as e:
                 warnings.warn(f"无法恢复外部熔断器: {e}")
 
@@ -722,7 +721,7 @@ class DataSanitizer:
                 # 尝试通用转换
                 try:
                     timestamp = pd.to_datetime(i).to_pydatetime()
-                except:
+                except Exception:
                     timestamp = datetime.now()
             raw_candle = RawCandle(
                 timestamp=timestamp,

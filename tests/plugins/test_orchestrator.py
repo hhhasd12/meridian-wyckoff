@@ -8,7 +8,6 @@ Orchestrator 插件测试
 - 健康检查
 - 系统启动/停止
 - 系统状态查询
-- 进化周期
 - 统计信息
 """
 
@@ -46,7 +45,6 @@ class TestOrchestratorPluginInit:
         plugin = OrchestratorPlugin()
         assert plugin._decision_count == 0
         assert plugin._process_count == 0
-        assert plugin._evolution_count == 0
         assert plugin._last_error is None
         assert plugin._is_running is False
         assert plugin._mode == "paper"
@@ -70,12 +68,11 @@ class TestOrchestratorLoadUnload:
         plugin._config = {"mode": "paper"}
         plugin.on_load()
         plugin._is_running = True
-        plugin._market_states["BTC/USDT"] = MagicMock()
 
         plugin.on_unload()
 
         assert plugin._is_running is False
-        assert len(plugin._market_states) == 0
+        assert plugin._engine is None
 
 
 class TestOrchestratorHealthCheck:
@@ -149,23 +146,6 @@ class TestOrchestratorSystemStatus:
         assert status["status"] == "running"
 
 
-class TestOrchestratorEvolution:
-    """测试进化周期"""
-
-    def setup_method(self):
-        """初始化测试"""
-        self.plugin = OrchestratorPlugin()
-
-    @pytest.mark.asyncio
-    async def test_evolution_cycle(self) -> None:
-        """测试进化周期"""
-        result = await self.plugin.run_evolution_cycle()
-
-        assert result["success"] is True
-        assert result["cycle_count"] == 1
-        assert self.plugin._evolution_count == 1
-
-
 class TestOrchestratorStatistics:
     """测试统计信息"""
 
@@ -179,7 +159,6 @@ class TestOrchestratorStatistics:
 
         assert stats["decision_count"] == 0
         assert stats["process_count"] == 0
-        assert stats["evolution_count"] == 0
         assert stats["is_running"] is False
         assert stats["mode"] == "paper"
 
@@ -187,14 +166,12 @@ class TestOrchestratorStatistics:
         """测试操作后统计"""
         self.plugin._decision_count = 5
         self.plugin._process_count = 10
-        self.plugin._evolution_count = 2
         self.plugin._is_running = True
 
         stats = self.plugin.get_statistics()
 
         assert stats["decision_count"] == 5
         assert stats["process_count"] == 10
-        assert stats["evolution_count"] == 2
         assert stats["is_running"] is True
 
 
@@ -248,9 +225,9 @@ class TestOrchestratorRunLoop:
 
         task = asyncio.create_task(self.plugin.run_loop())
         await asyncio.sleep(0.1)
-        
+
         assert self.plugin._is_running is True
-        
+
         self.plugin.request_stop()
         await asyncio.sleep(0.1)
         task.cancel()

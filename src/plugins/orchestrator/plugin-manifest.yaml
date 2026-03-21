@@ -16,7 +16,6 @@ dependencies:
   - signal_validation
   - risk_management
   - position_manager
-  - evolution
 
 events:
   publishes:
@@ -24,7 +23,6 @@ events:
     - orchestrator.stopped
     - orchestrator.decision_made
     - orchestrator.market_data_processed
-    - orchestrator.evolution_cycle_completed
     - orchestrator.error_occurred
   subscribes:
     - market_regime.detected

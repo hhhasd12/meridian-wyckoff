@@ -23,7 +23,7 @@ import random
 import warnings
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -45,7 +45,7 @@ except ImportError:
     MistakeType = None
 
 try:
-    from .weight_variator import WeightVariator
+    from .weight_variator_legacy import WeightVariator
 except ImportError:
     WeightVariator = None
 
@@ -208,10 +208,21 @@ class WFABacktester:
         self.accepted_validations = 0
         self.rejected_validations = 0
 
+    @staticmethod
+    def _normalize_historical_data(
+        historical_data: Union[pd.DataFrame, dict[str, pd.DataFrame], None],
+    ) -> Optional[dict[str, pd.DataFrame]]:
+        """将历史数据统一为 dict[str, pd.DataFrame] 格式"""
+        if historical_data is None:
+            return None
+        if isinstance(historical_data, pd.DataFrame):
+            return {"H4": historical_data}
+        return historical_data
+
     def initialize_with_baseline(
         self,
         baseline_config: dict[str, Any],
-        historical_data: Optional[pd.DataFrame] = None,
+        historical_data: Optional[Union[pd.DataFrame, dict[str, pd.DataFrame]]] = None,
         performance_evaluator: Optional[Callable] = None,
     ) -> Optional[dict[str, float]]:
         """
@@ -219,24 +230,34 @@ class WFABacktester:
 
         Args:
             baseline_config: 基准配置
-            historical_data: 历史数据（DataFrame格式）
+            historical_data: 历史数据（DataFrame 或 dict[str, DataFrame] 格式）
             performance_evaluator: 性能评估函数（如未提供，使用模拟评估）
 
         Returns:
             基准配置的性能指标
         """
+        # 统一为 dict 格式
+        historical_data = self._normalize_historical_data(historical_data)
+
         # 设置基准配置
         self.baseline_config = copy.deepcopy(baseline_config)
 
         # 评估基准性能
+        # C3修复：baseline也走WFA窗口化评估，确保与mutation同口径比较
         if performance_evaluator is not None:
-            self.baseline_performance = performance_evaluator(
-                baseline_config, historical_data
+            wfa_result = self._run_walk_forward_analysis(
+                baseline_config, historical_data, performance_evaluator
             )
+            self.baseline_performance = wfa_result.get(
+                "test_performance",
+                performance_evaluator(baseline_config, historical_data),
+            )
+            # 存储baseline的composite_score供后续comparison
+            self._baseline_composite = wfa_result.get("composite_score", 0.0)
         else:
             # 模拟性能评估（实际应用中应替换为真实评估）
             self.baseline_performance = self._simulate_performance(
-                baseline_config, historical_data
+                baseline_config, historical_data.get("H4") if historical_data else None
             )
 
         # 设置当前接受配置为基准
@@ -262,16 +283,16 @@ class WFABacktester:
     def validate_mutations(
         self,
         mutated_configs: list[dict[str, Any]],
-        historical_data: Optional[pd.DataFrame] = None,
+        historical_data: Optional[Union[pd.DataFrame, dict[str, pd.DataFrame]]] = None,
         performance_evaluator: Optional[Callable] = None,
-        mistake_book: Optional[MistakeBook] = None,
+        mistake_book: Optional[Any] = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
         """
         验证一组变异配置
 
         Args:
             mutated_configs: 变异配置列表
-            historical_data: 历史数据
+            historical_data: 历史数据（DataFrame 或 dict[str, DataFrame] 格式）
             performance_evaluator: 性能评估函数
             mistake_book: 错题本引用（用于记录验证结果）
 
@@ -280,6 +301,9 @@ class WFABacktester:
         """
         if not self.is_initialized:
             raise RuntimeError("WFA引擎未初始化，请先调用initialize_with_baseline")
+
+        # 统一为 dict 格式
+        historical_data = self._normalize_historical_data(historical_data)
 
         if not mutated_configs:
             return [], [], {"status": "no_mutations"}
@@ -419,7 +443,7 @@ class WFABacktester:
     def _run_walk_forward_analysis(
         self,
         config: dict[str, Any],
-        historical_data: Optional[pd.DataFrame] = None,
+        historical_data: Optional[Union[pd.DataFrame, dict[str, pd.DataFrame]]] = None,
         performance_evaluator: Optional[Callable] = None,
     ) -> dict[str, Any]:
         """
@@ -427,28 +451,28 @@ class WFABacktester:
 
         Args:
             config: 待验证配置
-            historical_data: 历史数据
+            historical_data: 历史数据（DataFrame 或 dict[str, DataFrame] 格式）
             performance_evaluator: 性能评估函数
 
         Returns:
             WFA分析结果字典
         """
+        # 统一为 dict 格式
+        historical_data = self._normalize_historical_data(historical_data)
+
         # 如果没有历史数据，使用模拟数据
         if historical_data is None:
-            # 创建模拟历史数据（实际应用中应使用真实数据）
-            historical_data = self._create_mock_historical_data()
+            historical_data = {"H4": self._create_mock_historical_data()}
 
         # 如果没有性能评估函数，使用模拟评估
         if performance_evaluator is None:
             performance_evaluator = self._simulate_performance
 
-        # 提取时间序列
-        dates = (
-            historical_data.index
-            if hasattr(historical_data, "index")
-            else range(len(historical_data))
-        )
-        total_days = len(dates)
+        # 以 H4 为锚定周期确定窗口
+        h4_data = historical_data.get("H4")
+        if h4_data is None:
+            h4_data = next(iter(historical_data.values()))
+        total_days = len(h4_data)
 
         # 检查数据是否足够
         if total_days < self.train_days + self.test_days:
@@ -471,28 +495,39 @@ class WFABacktester:
             train_end_idx = start_idx + self.train_days
             test_end_idx = train_end_idx + self.test_days
 
-            (
-                historical_data.iloc[start_idx:train_end_idx]
-                if hasattr(historical_data, "iloc")
-                else historical_data[start_idx:train_end_idx]
-            )
-            test_data = (
-                historical_data.iloc[train_end_idx:test_end_idx]
-                if hasattr(historical_data, "iloc")
-                else historical_data[train_end_idx:test_end_idx]
-            )
+            # Train data (未使用，仅记录)
+            (h4_data.iloc[start_idx:train_end_idx])
+            # Test data (未使用，仅记录)
+            test_data = h4_data.iloc[train_end_idx:test_end_idx]
 
             # 在训练集上评估配置（可选微调）
             # 这里我们直接使用给定配置，实际应用中可以在训练集上进一步优化
 
-            # 在测试集上评估性能
-            # 注意：必须传入 train+test 完整窗口，否则行数不足 slow_window 导致 MA 全为 NaN
-            full_window_data = (
-                historical_data.iloc[start_idx:test_end_idx]
-                if hasattr(historical_data, "iloc")
-                else historical_data[start_idx:test_end_idx]
-            )
-            test_performance = performance_evaluator(config, full_window_data)
+            # BUG-8 修复：传入 test 窗口 + warmup 预热期，而非完整 train+test 窗口
+            # C4修复：标记warmup/test边界，让evaluator只用test部分计分
+            warmup_bars = 50  # 足够 MA/ATR 等指标的预热
+            warmup_start = max(0, train_end_idx - warmup_bars)
+            # warmup/test边界时间戳
+            test_start_ts = h4_data.index[train_end_idx]
+            # 用 H4 索引确定时间范围
+            window_start_ts = h4_data.index[warmup_start]
+            window_end_ts = h4_data.index[min(test_end_idx - 1, len(h4_data) - 1)]
+            # 按时间范围切片所有周期
+            eval_data: dict[str, pd.DataFrame] = {}
+            for tf_key, tf_df in historical_data.items():
+                mask = (tf_df.index >= window_start_ts) & (tf_df.index <= window_end_ts)
+                sliced = tf_df.loc[mask]
+                if len(sliced) > 0:
+                    eval_data[tf_key] = sliced
+            # C4修复：在eval_data中标记test起始时间，evaluator可据此只计test部分
+            eval_data["__test_start_ts__"] = test_start_ts  # type: ignore[assignment]
+            eval_data["__warmup_bars__"] = warmup_bars  # type: ignore[assignment]
+            # 确保至少有 H4 数据
+            if "H4" not in eval_data or len(eval_data["H4"]) < 20:
+                start_idx += self.step_days
+                continue
+
+            test_performance = performance_evaluator(config, eval_data)
 
             # 记录窗口结果
             windows.append(
@@ -502,6 +537,7 @@ class WFABacktester:
                     "train_end": train_end_idx - 1,
                     "test_start": train_end_idx,
                     "test_end": test_end_idx - 1,
+                    "warmup_bars": warmup_bars,  # C4: 标记warmup长度
                     "test_performance": test_performance,
                 }
             )
@@ -808,35 +844,23 @@ class WFABacktester:
 
     def _record_validation_failure(
         self,
-        mistake_book: MistakeBook,
+        mistake_book: Any,
         config: dict[str, Any],
         validation_detail: dict[str, Any],
     ):
-        """记录验证失败到错题本"""
-        try:
-            mistake_book.record_mistake(
-                mistake_type=MistakeType.WEIGHT_ASSIGNMENT_ERROR,
-                severity=ErrorSeverity.MEDIUM,
-                context={
-                    "config_summary": str(config)[:500],  # 限制长度
-                    "validation_result": validation_detail["result"],
-                    "performance": validation_detail.get("performance", {}),
-                    "improvement": validation_detail.get("improvement", 0.0),
-                    "stability": validation_detail.get("stability", 0.0),
-                },
-                expected="ACCEPTED",
-                actual=validation_detail["result"],
-                confidence_before=0.7,  # 假设对变异有信心
-                confidence_after=0.3,  # 验证后信心下降
-                impact_score=0.5,
-                module_name="wfa_backtester",
-                timeframe="N/A",
-                patterns=[ErrorPattern.VOLATILITY_ADAPTATION_ERROR],
-                metadata={"validation_detail": validation_detail},
-            )
-        except Exception as e:
-            # 记录失败但不影响主流程
-            warnings.warn(f"Failed to record validation failure to mistake book: {e}")
+        """记录验证失败到日志（不再写入错题本）
+
+        BUG-4 修复：WFA 拒绝变异不是交易错误，不应该记录到错题本。
+        之前每次 WFA 拒绝都会向错题本写入 WEIGHT_ASSIGNMENT_ERROR，
+        导致 6394 轮后错题本有 9639 条假错误，被自己的噪音淹没。
+        改为仅记录日志，保持错题本干净。
+        """
+        logger.debug(
+            "WFA validation rejected: config_id=%s, reason=%s, improvement=%.4f",
+            validation_detail.get("config_id", "unknown"),
+            validation_detail.get("reason", "unknown"),
+            validation_detail.get("improvement", 0.0),
+        )
 
     def _simulate_performance(
         self, config: dict[str, Any], data: Optional[pd.DataFrame] = None

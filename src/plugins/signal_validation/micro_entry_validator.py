@@ -239,7 +239,7 @@ class MicroEntryValidator:
                 age_hours = (datetime.now() - timestamp).total_seconds() / 3600
                 if age_hours > 48:  # 超过48小时的结构可能失效
                     return False, f"结构已过期（{age_hours:.1f}小时）"
-            except:
+            except Exception:
                 pass
 
         return True, "H4结构有效"

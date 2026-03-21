@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #0d1117;
+  --color-surface: #161b22;
+  --color-border: #30363d;
+  --color-hover: #1c2128;
+  --color-green: #3fb950;
+  --color-red: #f85149;
+  --color-yellow: #d29922;
+  --color-blue: #58a6ff;
+  --color-purple: #bc8cff;
+  --color-cyan: #39d2c0;
+  --color-text: #e6edf3;
+  --color-text-secondary: #8b949e;
+  --color-text-muted: #484f58;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Table styling */
+@layer components {
+  .data-table {
+    @apply w-full text-sm;
+  }
+
+  .data-table th {
+    @apply text-left text-text-secondary font-medium py-1.5 px-2
+      border-b border-panel-border;
+  }
+
+  .data-table td {
+    @apply py-1.5 px-2 border-b border-panel-border/50 font-mono text-xs;
+  }
+
+  .data-table tr:hover td {
+    @apply bg-panel-hover;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium;
+  }
+
+  .badge-green {
+    @apply bg-accent-green/15 text-accent-green;
+  }
+
+  .badge-red {
+    @apply bg-accent-red/15 text-accent-red;
+  }
+
+  .badge-yellow {
+    @apply bg-accent-yellow/15 text-accent-yellow;
+  }
+
+  .badge-blue {
+    @apply bg-accent-blue/15 text-accent-blue;
+  }
+
+  .badge-purple {
+    @apply bg-accent-purple/15 text-accent-purple;
+  }
+
+  .panel {
+    @apply bg-panel-surface border border-panel-border rounded-lg;
+  }
+
+  .panel-header {
+    @apply flex items-center justify-between px-3 py-2
+      border-b border-panel-border text-sm font-medium text-text-secondary;
+  }
+}

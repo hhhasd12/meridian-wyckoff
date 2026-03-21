@@ -166,7 +166,8 @@ class ConfigSystem:
     ) -> Dict[str, Any]:
         """获取插件级配置
 
-        合并默认值和用户配置，返回完整的插件配置。
+        递归深度合并默认值和用户配置，返回完整的插件配置。
+        嵌套字典会被递归合并而非整体替换。
 
         Args:
             plugin_name: 插件名称
@@ -179,10 +180,38 @@ class ConfigSystem:
             plugin_name, {}
         )
 
-        # 默认值 + 用户配置（用户配置优先）
+        # 默认值 + 用户配置（递归深度合并，用户配置优先）
         merged = copy.deepcopy(defaults)
-        merged.update(user_config)
+        self._deep_merge(merged, user_config)
         return merged
+
+    @staticmethod
+    def _deep_merge(
+        base: Dict[str, Any],
+        override: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """递归深度合并两个字典
+
+        override 中的值会覆盖 base 中的同名键。
+        当两个值都是字典时，递归合并而非整体替换。
+
+        Args:
+            base: 基础字典（会被原地修改）
+            override: 覆盖字典
+
+        Returns:
+            合并后的 base 字典
+        """
+        for key, value in override.items():
+            if (
+                key in base
+                and isinstance(base[key], dict)
+                and isinstance(value, dict)
+            ):
+                ConfigSystem._deep_merge(base[key], value)
+            else:
+                base[key] = copy.deepcopy(value)
+        return base
 
     def set_plugin_config(
         self,
@@ -443,19 +472,15 @@ class ConfigSystem:
     def _parse_env_value(self, value: str) -> Any:
         """解析环境变量值的类型
 
+        先尝试数值转换，再判断布尔值，避免 "0" 被错误解析为 False。
+
         Args:
             value: 环境变量字符串值
 
         Returns:
             类型转换后的值
         """
-        # 布尔值
-        if value.lower() in ("true", "yes", "1"):
-            return True
-        if value.lower() in ("false", "no", "0"):
-            return False
-
-        # 整数
+        # 先尝试整数转换（优先于布尔值，避免 "0"/"1" 被误判）
         try:
             return int(value)
         except ValueError:
@@ -466,6 +491,12 @@ class ConfigSystem:
             return float(value)
         except ValueError:
             pass
+
+        # 布尔值（排除纯数字后再判断）
+        if value.lower() in ("true", "yes"):
+            return True
+        if value.lower() in ("false", "no"):
+            return False
 
         return value
 

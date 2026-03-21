@@ -231,13 +231,24 @@ class DataPipelinePlugin(BasePlugin):
             # 使用 asyncio 运行异步方法
             import asyncio
 
-            loop = asyncio.new_event_loop()
             try:
-                df = loop.run_until_complete(
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # 已有事件循环运行中，使用 nest_asyncio 或创建 Future
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    df = pool.submit(
+                        asyncio.run,
+                        self.pipeline.fetch_data(request),
+                    ).result()
+            else:
+                # 无事件循环，安全创建新的
+                df = asyncio.run(
                     self.pipeline.fetch_data(request)
                 )
-            finally:
-                loop.close()
 
             self._fetch_count += 1
             self._last_error = None
@@ -249,7 +260,7 @@ class DataPipelinePlugin(BasePlugin):
 
             return df
 
-        except (ValueError, KeyError) as e:
+        except Exception as e:
             self._last_error = str(e)
             self._logger.error(
                 "数据获取失败 [%s %s]: %s",

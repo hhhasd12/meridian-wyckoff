@@ -105,9 +105,6 @@ class TRDetector:
         closes = recent_data['close'].values
         volumes = recent_data['volume'].values if 'volume' in recent_data.columns else None
         
-        rolling_high = pd.Series(highs).rolling(self.min_bars, min_periods=1).max().values
-        rolling_low = pd.Series(lows).rolling(self.min_bars, min_periods=1).min().values
-        
         for window in range(self.min_bars, min(len(highs), self.max_bars)):
             window_highs = highs[-window:]
             window_lows = lows[-window:]

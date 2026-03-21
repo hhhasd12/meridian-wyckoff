@@ -711,7 +711,7 @@ class TRDetector:
             atr = tr.rolling(window=period).mean().iloc[-1]
 
             return atr if not np.isnan(atr) else 0.0
-        except:
+        except Exception:
             return 0.0
 
     def _update_stats(self) -> None:

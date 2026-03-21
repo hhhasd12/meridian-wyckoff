@@ -106,7 +106,7 @@ class BreakoutValidator:
             return None
 
         latest = df.iloc[-1]
-        df.iloc[-2]
+        # df.iloc[-2] 已移除（死代码，赋值后未使用）
 
         # 计算突破阈值（基于ATR）
         breakout_threshold = current_atr * self.atr_multiplier

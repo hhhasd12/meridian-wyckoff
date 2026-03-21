@@ -438,17 +438,10 @@ class PluginManager:
                 plugin_name=name,
             )
 
-        # 构建模块名
-        try:
-            rel_path = module_file.relative_to(
-                Path.cwd()
-            )
-            module_name = str(rel_path).replace(
-                "\\", "."
-            ).replace("/", ".")
-        except ValueError:
-            # 插件目录不在 cwd 下（如测试用临时目录）
-            module_name = f"plugins.{name}.{entry_point}"
+        # 构建模块名：优先通过 src/plugins 路径结构推断
+        module_name = self._infer_module_name(
+            module_file, name, entry_point
+        )
 
         if module_name.endswith(".py"):
             module_name = module_name[:-3]
@@ -489,6 +482,49 @@ class PluginManager:
                 f"导入模块失败: {e}",
                 plugin_name=name,
             ) from e
+
+    @staticmethod
+    def _infer_module_name(
+        module_file: Path,
+        name: str,
+        entry_point: str,
+    ) -> str:
+        """推断插件模块名
+
+        优先通过 src/plugins 路径结构推断，不依赖 Path.cwd()。
+        例如: .../src/plugins/market_regime/plugin.py -> src.plugins.market_regime.plugin
+
+        Args:
+            module_file: 模块文件路径
+            name: 插件名称
+            entry_point: 入口点名称
+
+        Returns:
+            推断的模块名
+        """
+        # 优先从路径中查找 "src" 目录作为锚点
+        parts = module_file.parts
+        for i, part in enumerate(parts):
+            if part == "src" and i + 1 < len(parts):
+                # 从 "src" 开始构建模块路径
+                module_parts = parts[i:]
+                module_name = ".".join(module_parts)
+                if module_name.endswith(".py"):
+                    module_name = module_name[:-3]
+                return module_name
+
+        # 回退：使用 Path.cwd()（兼容旧行为）
+        try:
+            rel_path = module_file.relative_to(Path.cwd())
+            module_name = str(rel_path).replace(
+                "\\", "."
+            ).replace("/", ".")
+        except ValueError:
+            module_name = f"plugins.{name}.{entry_point}"
+
+        if module_name.endswith(".py"):
+            module_name = module_name[:-3]
+        return module_name
 
     def _find_plugin_class(
         self,
@@ -601,30 +637,49 @@ class PluginManager:
     def _topological_sort(
         self, plugin_names: List[str]
     ) -> List[str]:
-        """拓扑排序
+        """拓扑排序（含循环依赖检测）
+
+        使用三色标记法（WHITE/GRAY/BLACK）检测循环依赖：
+        - WHITE: 未访问
+        - GRAY: 正在访问（在递归栈中）
+        - BLACK: 已完成访问
 
         Args:
             plugin_names: 待排序的插件名列表
 
         Returns:
             排序后的列表
+
+        Raises:
+            PluginDependencyError: 检测到循环依赖
         """
         name_set = set(plugin_names)
-        visited: Set[str] = set()
+        # 三色标记: 0=WHITE(未访问), 1=GRAY(访问中), 2=BLACK(已完成)
+        color: Dict[str, int] = {n: 0 for n in plugin_names}
         result: List[str] = []
 
-        def visit(name: str) -> None:
-            if name in visited:
+        def visit(name: str, path: List[str]) -> None:
+            if color.get(name, 0) == 2:  # BLACK - 已完成
                 return
-            visited.add(name)
+            if color.get(name, 0) == 1:  # GRAY - 循环依赖
+                cycle_start = path.index(name)
+                cycle = path[cycle_start:] + [name]
+                raise PluginDependencyError(
+                    f"检测到循环依赖: {' -> '.join(cycle)}",
+                    plugin_name=name,
+                    missing_dependencies=[],
+                )
+            color[name] = 1  # 标记为 GRAY（访问中）
             manifest = self._manifests.get(name)
             if manifest:
                 for dep in manifest.dependencies:
                     if dep in name_set:
-                        visit(dep)
+                        visit(dep, path + [name])
+            color[name] = 2  # 标记为 BLACK（已完成）
             result.append(name)
 
         for name in plugin_names:
-            visit(name)
+            if color.get(name, 0) == 0:
+                visit(name, [])
 
         return result

@@ -26,11 +26,21 @@ venv/
 htmlcov/
 
 # Logs & runtime artifacts
-logs/snapshots/
+logs/
 *.log
 system_state.json
 health_report.json
 run_output.txt
+
+# Runtime data directories
+data_cache/
+evolution_data/
+evolution_results/
+evolution_memory.jsonl
+exports/
+backtests/
+reports/
+status/
 
 # OS
 .DS_Store
@@ -38,3 +48,10 @@ Thumbs.db
 
 # Trae directory
 .trae/
+
+# Node.js
+node_modules/
+
+# Temp
+%TEMP%/
+nul

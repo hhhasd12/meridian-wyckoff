@@ -1,5 +1,7 @@
 # AGENTS.md - 威科夫全自动逻辑引擎开发指南
 
+> **⚠️ 语言规则（不可删除、不可修改）：所有面向用户的输出必须使用中文。更新本文档时必须保留此规则。写入文件最大不超过200行，100行为标准，不然会报错**
+
 本文档为AI代理（如opencode）提供在本代码库中工作的指导，包含构建、测试命令和代码风格规范。
 
 ## 项目概述
@@ -17,33 +19,34 @@ src/
 │   ├── plugin_manager.py  # 插件生命周期管理
 │   ├── event_bus.py       # 事件总线（发布/订阅）
 │   └── config_system.py   # 配置系统（YAML + 环境变量）
-├── plugins/         # 插件层（可插拔）— 13个业务插件
+├── plugins/         # 插件层（可插拔）— 15个业务插件
 │   ├── market_regime/     # 市场体制检测
 │   ├── data_pipeline/     # 数据管道
 │   ├── orchestrator/      # 系统编排器
 │   ├── wyckoff_state_machine/  # 威科夫状态机
 │   ├── pattern_detection/ # K线形态识别
-│   ├── perception/        # 感知层
+│   ├── perception/        # 感知层（FVG/K线物理属性/针体分析）
 │   ├── signal_validation/ # 信号验证
 │   ├── risk_management/   # 风险管理
+│   ├── position_manager/  # 仓位管理
 │   ├── weight_system/     # 权重系统
 │   ├── evolution/         # 自动化进化
 │   ├── exchange_connector/# 交易所连接器
 │   ├── dashboard/         # Web 仪表盘
-│   └── self_correction/   # 自我纠错
-├── core/            # 已删除（v2.1 — legacy 实现已迁移至 plugins/）
+│   ├── self_correction/   # 自我纠错
+│   └── agent_teams/       # AI Agent 团队（代码诊断/策略优化）
+├── api/             # FastAPI 后端（REST API + WebSocket）
 └── utils/           # 工具层
 ```
 
 ### 系统入口
 
 - **`src/app.py`** — `WyckoffApp` 类，插件化系统入口
-- **`run_live.py`** — 生产模式启动脚本，调用 `WyckoffApp`
+- **`run.py`** — 统一启动脚本（支持 api/trading/evolution/web/all 5种模式）
 
 ### 关键文档
 
 - **`docs/PLUGIN_DEVELOPMENT.md`** — 插件开发完整指南
-- **`plans/plugin_architecture_plan.md`** — 架构设计方案
 
 ## 构建和测试命令
 
@@ -51,9 +54,6 @@ src/
 ```bash
 # 安装依赖（使用Python 3.9+）
 pip install -r requirements.txt
-
-# 创建必要的目录结构
-mkdir -p logs reports status data_cache exports/decisions exports/reports backtests/results backtests/scenarios
 ```
 
 ### 代码质量检查
@@ -103,11 +103,14 @@ pytest tests/ -v --tb=short
 
 ### 开发工具
 ```bash
-# 启动系统（生产模式）
-python run_live.py
+# 启动 API 服务器（推荐）
+python run.py --mode=api
 
-# 启动系统（自定义配置）
-python run_live.py config_production.yaml
+# 启动交易系统
+python run.py --mode=trading
+
+# 启动全部服务
+python run.py --mode=all
 
 # 运行健康检查
 python health_check.py
@@ -358,6 +361,6 @@ mypy src/
 
 ---
 
-*本文档最后更新：2026-03-10*  
-*对应项目版本：威科夫全自动逻辑引擎 v2.0（插件化架构）*  
+*本文档最后更新：2026-03-19*
+*对应项目版本：威科夫全自动逻辑引擎 v2.1（架构清理）*  
 *参考文件：requirements.txt, setup.py, config.yaml, src/app.py, docs/PLUGIN_DEVELOPMENT.md*

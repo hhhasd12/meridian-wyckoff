@@ -15,6 +15,7 @@ EventBus 替代硬编码的模块间 import，实现发布-订阅模式。
 
 import asyncio
 import fnmatch
+import heapq
 import logging
 import time
 from dataclasses import dataclass, field
@@ -483,26 +484,34 @@ class EventBus:
     ) -> List[Subscription]:
         """获取匹配指定事件名的所有处理器（已按优先级排序）
 
+        使用 heapq.merge 合并已排序的精确匹配和通配符匹配列表，
+        避免每次调用都对合并后的列表重新排序。
+
         Args:
             event_name: 事件名称
 
         Returns:
             匹配的订阅列表，按优先级排序
         """
-        handlers: List[Subscription] = []
+        # 精确匹配（已按优先级排序）
+        exact = self._exact_subscriptions.get(event_name, [])
 
-        # 精确匹配
-        if event_name in self._exact_subscriptions:
-            handlers.extend(self._exact_subscriptions[event_name])
+        # 通配符匹配（_pattern_subscriptions 已按优先级排序）
+        pattern_matches = [
+            sub for sub in self._pattern_subscriptions
+            if fnmatch.fnmatch(event_name, sub.event_pattern)
+        ]
 
-        # 通配符匹配
-        for sub in self._pattern_subscriptions:
-            if fnmatch.fnmatch(event_name, sub.event_pattern):
-                handlers.append(sub)
+        # 使用 heapq.merge 合并两个已排序列表，避免重新排序
+        if not exact:
+            return pattern_matches
+        if not pattern_matches:
+            return list(exact)
 
-        # 按优先级排序
-        handlers.sort(key=lambda s: s.priority.value)
-        return handlers
+        return list(heapq.merge(
+            exact, pattern_matches,
+            key=lambda s: s.priority.value,
+        ))
 
     def _sort_exact_subscriptions(self, event_name: str) -> None:
         """对指定事件的精确匹配订阅按优先级排序"""

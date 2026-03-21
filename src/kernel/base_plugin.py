@@ -385,12 +385,12 @@ class BasePlugin(ABC):
             self._set_state(PluginState.UNLOADED)
             self._logger.info("卸载完成")
         except Exception as e:
-            self._set_error(f"卸载异常: {e}")
+            # 记录错误信息但直接设为 UNLOADED（而非先 ERROR 再 UNLOADED）
+            self._error_message = f"卸载异常: {e}"
             self._logger.error(
                 "卸载异常: %s", e, exc_info=True
             )
-            # 即使卸载异常，也标记为 UNLOADED
-            self._state = PluginState.UNLOADED
+            self._set_state(PluginState.UNLOADED)
 
     def __repr__(self) -> str:
         return (

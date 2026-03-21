@@ -181,19 +181,19 @@ class ConfigLoader:
 
     def _parse_env_value(self, value: str) -> Any:
         """解析环境变量值"""
-        # 布尔值
-        if value.lower() in ("true", "yes", "1"):
-            return True
-        if value.lower() in ("false", "no", "0"):
-            return False
-
-        # 数字
+        # 数字（必须在布尔检查之前，否则 "0" 会被解析为 False）
         try:
             if "." in value:
                 return float(value)
             return int(value)
         except ValueError:
             pass
+
+        # 布尔值
+        if value.lower() in ("true", "yes"):
+            return True
+        if value.lower() in ("false", "no"):
+            return False
 
         # 字符串
         return value
