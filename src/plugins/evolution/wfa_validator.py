@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 class WFAConfig:
     """WFA 验证器配置"""
 
-    train_bars: int = 600  # 训练窗口大小（H4根数）~100天
-    test_bars: int = 200  # 测试窗口大小（H4根数）~33天
-    step_bars: int = 150  # 步进大小
-    min_windows: int = 2  # 最少窗口数
+    train_bars: int = 300  # 训练窗口大小（H4根数）~50天
+    test_bars: int = 300  # 测试窗口大小（H4根数）~50天
+    step_bars: int = 300  # 步进大小（= test_bars，消除窗口重叠）
+    min_windows: int = 3  # 最少窗口数
     max_windows: int = 5  # 最多窗口数
     warmup_bars: int = 50  # 指标预热期
     min_trades_per_window: int = 3  # 每个窗口最少交易数
@@ -196,13 +196,15 @@ class WFAValidator:
                 config_hash="",
             )
 
-            # 测试段评估 — 注入 WFA 元数据
+            # 测试段评估 — 独立引擎实例，仅给 warmup 预热数据
+            # 根因2修复：不再传入完整训练段数据，避免引擎状态泄漏
+            test_warmup_start = max(0, window.test_start - self.config.warmup_bars)
             test_data = self._slice_data(
-                data_dict, h4, window.train_start, window.test_end
+                data_dict, h4, test_warmup_start, window.test_end
             )
             # 注入测试段起始时间戳，让评估器只统计测试段的信号
-            test_data["__test_start_ts__"] = h4.index[window.test_start]
-            test_data["__warmup_bars__"] = self.config.warmup_bars
+            test_data["__test_start_ts__"] = h4.index[window.test_start]  # type: ignore[assignment]
+            test_data["__warmup_bars__"] = self.config.warmup_bars  # type: ignore[assignment]
 
             test_metrics = self.evaluator_fn(config, test_data)
             test_sharpe = test_metrics.get("SHARPE_RATIO", 0.0)

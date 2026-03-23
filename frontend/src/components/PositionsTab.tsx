@@ -5,8 +5,8 @@ export default function PositionsTab() {
 
   if (positions.length === 0) {
     return (
-      <div className="text-text-muted text-xs italic p-2">
-        No open positions
+      <div className="text-text-muted text-sm italic p-2">
+        暂无持仓
       </div>
     );
   }
@@ -15,16 +15,18 @@ export default function PositionsTab() {
     <table className="data-table">
       <thead>
         <tr>
-          <th>Symbol</th>
-          <th>Side</th>
-          <th>Entry</th>
-          <th>Current</th>
-          <th>Size</th>
-          <th>PnL</th>
-          <th>PnL%</th>
-          <th>SL</th>
-          <th>TP</th>
-          <th>Lev</th>
+          <th>交易对</th>
+          <th>方向</th>
+          <th>入场价</th>
+          <th>现价</th>
+          <th>仓位</th>
+          <th>盈亏</th>
+          <th>盈亏%</th>
+          <th>止损</th>
+          <th>止盈</th>
+          <th>杠杆</th>
+          <th>状态</th>
+          <th>风报比</th>
         </tr>
       </thead>
       <tbody>
@@ -33,11 +35,11 @@ export default function PositionsTab() {
             <td className="text-text-primary font-medium">{pos.symbol}</td>
             <td>
               <span
-                className={`badge ${
+                className={`badge text-xs ${
                   pos.side === "LONG" ? "badge-green" : "badge-red"
                 }`}
               >
-                {pos.side ?? "—"}
+                {pos.side === "LONG" ? "做多" : pos.side === "SHORT" ? "做空" : "—"}
               </span>
             </td>
             <td>{pos.entry_price?.toFixed(2) ?? "—"}</td>
@@ -58,7 +60,7 @@ export default function PositionsTab() {
               }
             >
               {pos.pnl_pct !== undefined
-                ? `${pos.pnl_pct >= 0 ? "+" : ""}${pos.pnl_pct.toFixed(2)}%`
+                ? `${pos.pnl_pct >= 0 ? "+" : ""}${(pos.pnl_pct ?? 0).toFixed(2)}%`
                 : "—"}
             </td>
             <td className="text-accent-red">
@@ -68,6 +70,12 @@ export default function PositionsTab() {
               {pos.take_profit?.toFixed(2) ?? "—"}
             </td>
             <td>{pos.leverage ?? "—"}x</td>
+            <td className="text-text-secondary">
+              {pos.wyckoff_state ?? "—"}
+            </td>
+            <td className="text-accent-cyan">
+              {pos.risk_reward_ratio?.toFixed(2) ?? "—"}
+            </td>
           </tr>
         ))}
       </tbody>

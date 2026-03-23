@@ -182,6 +182,7 @@ class BreakoutValidator:
         record = {
             "breakout_id": breakout_id,
             "direction": direction,  # 1: 向上, -1: 向下
+            "is_valid": True,
             "status": BreakoutStatus.INITIAL_BREAKOUT,
             "breakout_price": breakout_price,
             "breakout_level": breakout_level,
@@ -639,7 +640,6 @@ if __name__ == "__main__":
             )
 
             if "status" in updated and updated["status"] != breakout_record["status"]:
-
                 if updated["status"] == BreakoutStatus.CONFIRMED:
                     signal = validator.get_breakout_signal(
                         breakout_record["breakout_id"]

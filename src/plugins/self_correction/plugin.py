@@ -2,7 +2,7 @@
 
 将 SelfCorrectionWorkflow 包装为标准插件，提供：
 1. 生命周期管理（on_load / on_unload）
-2. 事件驱动：订阅 evolution.cycle_completed 触发纠错
+2. 事件驱动：订阅 evolution.cycle_complete 触发纠错
 3. 发布 self_correction.cycle_completed 事件
 4. 健康检查
 
@@ -71,11 +71,7 @@ class SelfCorrectionPlugin(BasePlugin):
 
         # 订阅进化周期完成事件
         self.subscribe_event(
-            "evolution.cycle_completed",
-            self._on_evolution_cycle_completed,
-        )
-        self.subscribe_event(
-            "orchestrator.evolution_cycle_completed",
+            "evolution.cycle_complete",
             self._on_evolution_cycle_completed,
         )
 

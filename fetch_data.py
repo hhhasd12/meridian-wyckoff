@@ -58,7 +58,7 @@ def create_exchange() -> ccxt.binance:
             config["httpsProxy"] = proxy
             config["httpProxy"] = proxy
 
-    exchange = ccxt.binance(config)
+    exchange = ccxt.binance(config)  # type: ignore[arg-type]
 
     try:
         exchange.load_markets()
@@ -108,14 +108,15 @@ def fetch_ohlcv(exchange: ccxt.binance, timeframe: str) -> pd.DataFrame:
         raise RuntimeError(f"未获取到 {SYMBOL} {timeframe} 数据")
 
     df = pd.DataFrame(
-        all_ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"]
+        all_ohlcv,
+        columns=["timestamp", "open", "high", "low", "close", "volume"],  # type: ignore[arg-type]
     )
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
     df.set_index("timestamp", inplace=True)
     df = df[~df.index.duplicated(keep="first")]
     df.sort_index(inplace=True)
 
-    return df
+    return df  # type: ignore[return-value]
 
 
 def main():

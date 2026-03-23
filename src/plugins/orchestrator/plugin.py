@@ -16,6 +16,7 @@ Orchestrator 插件 v3 — 事件桥梁
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -63,6 +64,11 @@ class OrchestratorPlugin(BasePlugin):
         self._stop_event: Optional[asyncio.Event] = None
         # 熔断状态 — 熔断时不发送信号
         self._circuit_breaker_tripped: bool = False
+        # TF 累积缓冲 — 收集逐个到达的 per-TF 事件，凑齐后统一处理
+        self._pending_data: Dict[str, Dict[str, pd.DataFrame]] = {}
+        self._pending_timestamps: Dict[str, float] = {}
+        # 累积超时（秒）— 超过此时间后即使未凑齐也触发处理
+        self._accumulation_timeout: float = 10.0
 
     # ================================================================
     # 生命周期
@@ -73,6 +79,11 @@ class OrchestratorPlugin(BasePlugin):
         self._mode = self._config.get("mode", "paper")
         self._symbols = self._config.get("symbols", [])
         self._timeframes = self._config.get("timeframes", ["H4", "H1", "M15"])
+
+        # 累积超时配置
+        self._accumulation_timeout = float(
+            self._config.get("accumulation_timeout", 10.0)
+        )
 
         # 初始化 WyckoffEngine（唯一信号路径）
         engine_config = self._config.get("engine", {})
@@ -94,6 +105,8 @@ class OrchestratorPlugin(BasePlugin):
         self._is_running = False
         self._engine = None
         self._decision_history.clear()
+        self._pending_data.clear()
+        self._pending_timestamps.clear()
         logger.info("OrchestratorPlugin unloaded")
 
     def _subscribe_events(self) -> None:
@@ -120,7 +133,13 @@ class OrchestratorPlugin(BasePlugin):
     # ================================================================
 
     def _on_data_ready(self, event_name: str, data: Dict[str, Any]) -> None:
-        """处理数据就绪事件 — 核心信号路径
+        """处理数据就绪事件 — 核心信号路径（含 TF 累积）
+
+        data_pipeline 每次发布单个 timeframe 的 ohlcv_ready 事件。
+        此方法将其累积到 _pending_data[symbol] 中，当：
+          1. 所有配置的 timeframes 都到齐，或
+          2. 距第一个 TF 到达已超过 accumulation_timeout
+        时，一次性调用 _process_market_data。
 
         Args:
             event_name: 事件名称
@@ -131,7 +150,7 @@ class OrchestratorPlugin(BasePlugin):
         """
         symbol = data.get("symbol", "")
         data_dict = data.get("data_dict")
-        timeframes = data.get("timeframes", self._timeframes)
+        timeframes = data.get("timeframes", [])
 
         if not symbol or not data_dict:
             logger.warning(
@@ -141,7 +160,36 @@ class OrchestratorPlugin(BasePlugin):
             )
             return
 
-        self._process_market_data(symbol, timeframes, data_dict)
+        # 累积到 pending buffer
+        if symbol not in self._pending_data:
+            self._pending_data[symbol] = {}
+            self._pending_timestamps[symbol] = time.monotonic()
+
+        self._pending_data[symbol].update(data_dict)
+
+        # 检查是否应触发处理
+        expected_tfs = set(self._timeframes)
+        received_tfs = set(self._pending_data[symbol].keys())
+        elapsed = time.monotonic() - self._pending_timestamps.get(symbol, 0)
+        timed_out = elapsed >= self._accumulation_timeout
+
+        if expected_tfs <= received_tfs or timed_out:
+            # 凑齐或超时 → 触发处理
+            merged_data = self._pending_data.pop(symbol)
+            self._pending_timestamps.pop(symbol, None)
+            merged_tfs = list(merged_data.keys())
+
+            if timed_out and not (expected_tfs <= received_tfs):
+                logger.warning(
+                    "TF 累积超时 (%.1fs)，部分处理: symbol=%s, "
+                    "expected=%s, received=%s",
+                    elapsed,
+                    symbol,
+                    sorted(expected_tfs),
+                    sorted(received_tfs),
+                )
+
+            self._process_market_data(symbol, merged_tfs, merged_data)
 
     def _process_market_data(
         self,
@@ -169,6 +217,9 @@ class OrchestratorPlugin(BasePlugin):
         self._process_count += 1
 
         try:
+            # 发布最新价格更新（供 position_manager 实时止损监控）
+            self._publish_price_update(symbol, data_dict)
+
             # 调用引擎 — 唯一信号路径
             decision, events = self._engine.process_market_data(
                 symbol=symbol,
@@ -304,6 +355,38 @@ class OrchestratorPlugin(BasePlugin):
         if len(self._decision_history) > 100:
             self._decision_history = self._decision_history[-100:]
 
+    def _publish_price_update(
+        self, symbol: str, data_dict: Dict[str, pd.DataFrame]
+    ) -> None:
+        """从数据字典中提取最新价格并发布 market.price_update 事件
+
+        供 position_manager 实时止损监控使用。
+        优先从主时间框架获取最新收盘价。
+
+        Args:
+            symbol: 交易对
+            data_dict: {timeframe: DataFrame}
+        """
+        primary_tf = self._timeframes[0] if self._timeframes else "H4"
+        df = data_dict.get(primary_tf)
+        if df is None:
+            # 回退：使用任意可用的 DataFrame
+            for tf_df in data_dict.values():
+                if tf_df is not None and len(tf_df) > 0:
+                    df = tf_df
+                    break
+
+        if df is not None and len(df) > 0 and "close" in df.columns:
+            latest_close = float(df["close"].iloc[-1])
+            self.emit_event(
+                "market.price_update",
+                {
+                    "symbol": symbol,
+                    "price": latest_close,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+
     # ================================================================
     # 辅助事件处理器
     # ================================================================
@@ -401,6 +484,14 @@ class OrchestratorPlugin(BasePlugin):
         while self._is_running:
             try:
                 for symbol in self._symbols:
+                    # 请求 data_pipeline 刷新数据（事件驱动模式的数据源）
+                    self.emit_event(
+                        "orchestrator.data_refresh_requested",
+                        {
+                            "symbol": symbol,
+                            "timeframes": self._timeframes,
+                        },
+                    )
                     data_dict = self._fetch_data_from_connector(symbol)
                     if data_dict:
                         self._process_market_data(symbol, self._timeframes, data_dict)

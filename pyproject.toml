@@ -1,6 +1,6 @@
 [project]
 name = "wyckoff-trading-engine"
-version = "1.0.0"
+version = "3.0.0"
 description = "威科夫全自动逻辑引擎 - 加密货币量化交易系统"
 requires-python = ">=3.9,<3.12"
 

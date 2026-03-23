@@ -1,5 +1,5 @@
 name: perception
-version: "1.0.0"
+version: "3.0.0"
 description: "感知层插件 - K线物理属性分析、FVG缺口检测、针vs实体辩证识别"
 author: "Wyckoff Engine Team"
 entry_point: plugin

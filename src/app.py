@@ -73,6 +73,10 @@ class WyckoffApp:
 
         # 加载配置
         self.config_system.load(config_path)
+
+        # 注册配置变更监听器 → 通过事件总线发布 system.config_update
+        self.config_system.add_change_listener(self._on_config_changed)
+
         logger.info(
             "WyckoffApp 初始化完成, config=%s, plugins_dir=%s",
             config_path,
@@ -144,12 +148,8 @@ class WyckoffApp:
         ]
         for name in core_plugins:
             if not results.get(name, False):
-                logger.error(
-                    "核心插件 %s 加载失败，系统无法启动", name
-                )
-                raise RuntimeError(
-                    f"核心插件 {name} 加载失败"
-                )
+                logger.error("核心插件 %s 加载失败，系统无法启动", name)
+                raise RuntimeError(f"核心插件 {name} 加载失败")
 
         self._is_running = True
         self._stop_event = asyncio.Event()
@@ -181,7 +181,7 @@ class WyckoffApp:
         if hasattr(orchestrator, "run_loop"):
             logger.info("委托交易循环给 OrchestratorPlugin")
             try:
-                await orchestrator.run_loop()
+                await orchestrator.run_loop()  # type: ignore[attr-defined]
             except asyncio.CancelledError:
                 logger.info("交易循环被取消")
         elif self._stop_event:
@@ -203,13 +203,13 @@ class WyckoffApp:
         if orchestrator:
             try:
                 if hasattr(orchestrator, "request_stop"):
-                    orchestrator.request_stop()
+                    orchestrator.request_stop()  # type: ignore[attr-defined]
                     logger.info("已通过 request_stop() 通知 orchestrator 停止")
                 elif hasattr(orchestrator, "stop_system"):
-                    if asyncio.iscoroutinefunction(orchestrator.stop_system):
-                        await orchestrator.stop_system()
+                    if asyncio.iscoroutinefunction(orchestrator.stop_system):  # type: ignore[attr-defined]
+                        await orchestrator.stop_system()  # type: ignore[attr-defined]
                     else:
-                        orchestrator.stop_system()
+                        orchestrator.stop_system()  # type: ignore[attr-defined]
                     logger.info("已通过 stop_system() 通知 orchestrator 停止")
                 else:
                     # 回退：通过事件总线发出停止事件
@@ -224,7 +224,7 @@ class WyckoffApp:
 
         # 发布系统关闭事件
         self.event_bus.emit(
-            "system.stopping",
+            "system.shutdown",
             {},
             publisher="app",
         )
@@ -255,3 +255,30 @@ class WyckoffApp:
             "plugin_count": len(plugin_statuses),
             "plugins": plugin_statuses,
         }
+
+    def _on_config_changed(
+        self,
+        scope: str,
+        key: str,
+        old_value: Any,
+        new_value: Any,
+    ) -> None:
+        """配置变更回调 → 通过事件总线发布 system.config_update
+
+        Args:
+            scope: 变更范围（"global" 或插件名称）
+            key: 变更的键名
+            old_value: 旧值
+            new_value: 新值
+        """
+        self.event_bus.emit(
+            "system.config_update",
+            {
+                "scope": scope,
+                "key": key,
+                "old_value": old_value,
+                "new_value": new_value,
+                scope: new_value,
+            },
+            publisher="app",
+        )

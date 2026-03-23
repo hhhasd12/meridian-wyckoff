@@ -30,9 +30,7 @@ class TestPatternDetectionLifecycle:
         self.plugin = PatternDetectionPlugin()
 
     @patch("src.plugins.pattern_detection.curve_boundary.CurveBoundaryFitter")
-    @patch(
-        "src.plugins.pattern_detection.wyckoff_phase_detector.WyckoffPhaseDetector"
-    )
+    @patch("src.plugins.pattern_detection.wyckoff_phase_detector.WyckoffPhaseDetector")
     @patch("src.plugins.pattern_detection.tr_detector.TRDetector")
     def test_on_load_creates_detectors(
         self,
@@ -51,9 +49,7 @@ class TestPatternDetectionLifecycle:
         assert self.plugin._boundary_fitter is not None
 
     @patch("src.plugins.pattern_detection.curve_boundary.CurveBoundaryFitter")
-    @patch(
-        "src.plugins.pattern_detection.wyckoff_phase_detector.WyckoffPhaseDetector"
-    )
+    @patch("src.plugins.pattern_detection.wyckoff_phase_detector.WyckoffPhaseDetector")
     @patch("src.plugins.pattern_detection.tr_detector.TRDetector")
     def test_on_load_with_config(
         self,
@@ -74,9 +70,7 @@ class TestPatternDetectionLifecycle:
         mock_boundary_cls.assert_called_once_with({"window": 20})
 
     @patch("src.plugins.pattern_detection.curve_boundary.CurveBoundaryFitter")
-    @patch(
-        "src.plugins.pattern_detection.wyckoff_phase_detector.WyckoffPhaseDetector"
-    )
+    @patch("src.plugins.pattern_detection.wyckoff_phase_detector.WyckoffPhaseDetector")
     @patch("src.plugins.pattern_detection.tr_detector.TRDetector")
     def test_on_unload_clears_all(
         self,
@@ -102,9 +96,7 @@ class TestPatternDetectionLifecycle:
         assert self.plugin._last_error is None
 
     @patch("src.plugins.pattern_detection.curve_boundary.CurveBoundaryFitter")
-    @patch(
-        "src.plugins.pattern_detection.wyckoff_phase_detector.WyckoffPhaseDetector"
-    )
+    @patch("src.plugins.pattern_detection.wyckoff_phase_detector.WyckoffPhaseDetector")
     @patch("src.plugins.pattern_detection.tr_detector.TRDetector")
     def test_on_config_update_recreates_detectors(
         self,
@@ -209,12 +201,8 @@ class TestDetectTradingRange:
 
     def test_detect_tr_unloaded_raises(self) -> None:
         """测试未加载时抛出异常"""
-        with pytest.raises(
-            RuntimeError, match="未加载.*TR"
-        ):
-            self.plugin.detect_trading_range(
-                pd.DataFrame()
-            )
+        with pytest.raises(RuntimeError, match="未加载.*TR"):
+            self.plugin.detect_trading_range(pd.DataFrame())
 
     def test_detect_tr_success(self) -> None:
         """测试成功检测TR"""
@@ -223,19 +211,15 @@ class TestDetectTradingRange:
         mock_result.confidence = 0.85
 
         self.plugin._tr_detector = MagicMock()
-        self.plugin._tr_detector.detect_trading_range.return_value = (
-            mock_result
-        )
+        self.plugin._tr_detector.detect_trading_range.return_value = mock_result
 
-        df = pd.DataFrame(
-            {"close": [1.0, 2.0, 3.0]}
-        )
+        df = pd.DataFrame({"close": [1.0, 2.0, 3.0]})
         result = self.plugin.detect_trading_range(df)
 
         assert result == mock_result
         assert self.plugin._tr_detect_count == 1
         assert self.plugin._last_error is None
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore[attr-defined]
             "pattern_detection.tr_detected",
             {"status": "ACTIVE", "confidence": 0.85},
         )
@@ -247,17 +231,13 @@ class TestDetectTradingRange:
         del mock_result.confidence
 
         self.plugin._tr_detector = MagicMock()
-        self.plugin._tr_detector.detect_trading_range.return_value = (
-            mock_result
-        )
+        self.plugin._tr_detector.detect_trading_range.return_value = mock_result
 
-        df = pd.DataFrame(
-            {"close": [1.0, 2.0]}
-        )
+        df = pd.DataFrame({"close": [1.0, 2.0]})
         result = self.plugin.detect_trading_range(df)
 
         assert result == mock_result
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore[attr-defined]
             "pattern_detection.tr_detected",
             {"status": "UNKNOWN", "confidence": 0.0},
         )
@@ -265,8 +245,8 @@ class TestDetectTradingRange:
     def test_detect_tr_exception_sets_error(self) -> None:
         """测试异常时设置last_error"""
         self.plugin._tr_detector = MagicMock()
-        self.plugin._tr_detector.detect_trading_range.side_effect = (
-            ValueError("数据不足")
+        self.plugin._tr_detector.detect_trading_range.side_effect = ValueError(
+            "数据不足"
         )
 
         df = pd.DataFrame()
@@ -287,12 +267,8 @@ class TestDetectWyckoffPhases:
 
     def test_detect_phases_unloaded_raises(self) -> None:
         """测试未加载时抛出异常"""
-        with pytest.raises(
-            RuntimeError, match="未加载.*威科夫"
-        ):
-            self.plugin.detect_wyckoff_phases(
-                pd.Series(), {}, "IDLE"
-            )
+        with pytest.raises(RuntimeError, match="未加载.*威科夫"):
+            self.plugin.detect_wyckoff_phases(pd.Series(), {}, "IDLE")
 
     def test_detect_phases_success(self) -> None:
         """测试成功检测威科夫阶段"""
@@ -303,21 +279,15 @@ class TestDetectWyckoffPhases:
         }
 
         self.plugin._phase_detector = MagicMock()
-        self.plugin._phase_detector.detect.return_value = (
-            mock_results
-        )
+        self.plugin._phase_detector.detect.return_value = mock_results
 
-        candle = pd.Series(
-            {"open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5}
-        )
+        candle = pd.Series({"open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5})
         context = {"trend": "up"}
-        result = self.plugin.detect_wyckoff_phases(
-            candle, context, "ACCUMULATION"
-        )
+        result = self.plugin.detect_wyckoff_phases(candle, context, "ACCUMULATION")
 
         assert result == mock_results
         assert self.plugin._phase_detect_count == 1
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore[attr-defined]
             "pattern_detection.wyckoff_phase_detected",
             {
                 "best_phase": "SC",
@@ -334,17 +304,13 @@ class TestDetectWyckoffPhases:
         }
 
         self.plugin._phase_detector = MagicMock()
-        self.plugin._phase_detector.detect.return_value = (
-            mock_results
-        )
+        self.plugin._phase_detector.detect.return_value = mock_results
 
         candle = pd.Series({"close": 1.0})
-        result = self.plugin.detect_wyckoff_phases(
-            candle, {}, "IDLE"
-        )
+        result = self.plugin.detect_wyckoff_phases(candle, {}, "IDLE")
 
         assert result == mock_results
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore[attr-defined]
             "pattern_detection.wyckoff_phase_detected",
             {
                 "best_phase": None,
@@ -356,16 +322,10 @@ class TestDetectWyckoffPhases:
     def test_detect_phases_exception(self) -> None:
         """测试异常时设置last_error"""
         self.plugin._phase_detector = MagicMock()
-        self.plugin._phase_detector.detect.side_effect = (
-            RuntimeError("检测失败")
-        )
+        self.plugin._phase_detector.detect.side_effect = RuntimeError("检测失败")
 
-        with pytest.raises(
-            RuntimeError, match="检测失败"
-        ):
-            self.plugin.detect_wyckoff_phases(
-                pd.Series(), {}, "IDLE"
-            )
+        with pytest.raises(RuntimeError, match="检测失败"):
+            self.plugin.detect_wyckoff_phases(pd.Series(), {}, "IDLE")
 
         assert self.plugin._last_error == "检测失败"
 
@@ -380,9 +340,7 @@ class TestFitBoundary:
 
     def test_fit_boundary_unloaded_raises(self) -> None:
         """测试未加载时抛出异常"""
-        with pytest.raises(
-            RuntimeError, match="未加载.*边界"
-        ):
+        with pytest.raises(RuntimeError, match="未加载.*边界"):
             self.plugin.fit_boundary(pd.DataFrame())
 
     def test_fit_boundary_success(self) -> None:
@@ -395,26 +353,18 @@ class TestFitBoundary:
         mock_current = {"upper": 12.0, "lower": 7.5}
 
         self.plugin._boundary_fitter = MagicMock()
-        self.plugin._boundary_fitter.detect_pivot_points.return_value = (
-            mock_pivots
-        )
-        self.plugin._boundary_fitter.get_boundary_history.return_value = (
-            mock_history
-        )
-        self.plugin._boundary_fitter.get_current_boundary.return_value = (
-            mock_current
-        )
+        self.plugin._boundary_fitter.detect_pivot_points.return_value = mock_pivots
+        self.plugin._boundary_fitter.get_boundary_history.return_value = mock_history
+        self.plugin._boundary_fitter.get_current_boundary.return_value = mock_current
 
-        df = pd.DataFrame(
-            {"close": [10.0, 11.0, 9.0, 12.0, 8.0]}
-        )
+        df = pd.DataFrame({"close": [10.0, 11.0, 9.0, 12.0, 8.0]})
         result = self.plugin.fit_boundary(df)
 
         assert result["pivots"] == mock_pivots
         assert result["boundary_history"] == mock_history
         assert result["current_boundary"] == mock_current
         assert self.plugin._boundary_fit_count == 1
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore[attr-defined]
             "pattern_detection.boundary_fitted",
             {"high_count": 2, "low_count": 3},
         )
@@ -422,15 +372,15 @@ class TestFitBoundary:
     def test_fit_boundary_exception(self) -> None:
         """测试异常时设置last_error"""
         self.plugin._boundary_fitter = MagicMock()
-        self.plugin._boundary_fitter.detect_pivot_points.side_effect = (
-            KeyError("close")
-        )
+        self.plugin._boundary_fitter.detect_pivot_points.side_effect = KeyError("close")
 
         df = pd.DataFrame()
         with pytest.raises(KeyError):
             self.plugin.fit_boundary(df)
 
-        assert "close" in self.plugin._last_error
+        assert (
+            self.plugin._last_error is not None and "close" in self.plugin._last_error
+        )
 
 
 class TestGetTRSignals:
@@ -443,9 +393,7 @@ class TestGetTRSignals:
 
     def test_get_signals_unloaded_raises(self) -> None:
         """测试未加载时抛出异常"""
-        with pytest.raises(
-            RuntimeError, match="未加载.*TR信号"
-        ):
+        with pytest.raises(RuntimeError, match="未加载.*TR信号"):
             self.plugin.get_tr_signals(100.0)
 
     def test_get_signals_success(self) -> None:
@@ -456,15 +404,13 @@ class TestGetTRSignals:
         }
 
         self.plugin._tr_detector = MagicMock()
-        self.plugin._tr_detector.get_tr_signals.return_value = (
-            mock_signals
-        )
+        self.plugin._tr_detector.get_tr_signals.return_value = mock_signals
 
         result = self.plugin.get_tr_signals(50000.0)
 
         assert result == mock_signals
         assert self.plugin._last_error is None
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore[attr-defined]
             "pattern_detection.tr_signals",
             {"price": 50000.0},
         )
@@ -472,13 +418,9 @@ class TestGetTRSignals:
     def test_get_signals_exception(self) -> None:
         """测试异常时设置last_error"""
         self.plugin._tr_detector = MagicMock()
-        self.plugin._tr_detector.get_tr_signals.side_effect = (
-            ValueError("无效价格")
-        )
+        self.plugin._tr_detector.get_tr_signals.side_effect = ValueError("无效价格")
 
-        with pytest.raises(
-            ValueError, match="无效价格"
-        ):
+        with pytest.raises(ValueError, match="无效价格"):
             self.plugin.get_tr_signals(-1.0)
 
         assert self.plugin._last_error == "无效价格"
@@ -503,9 +445,7 @@ class TestGetStatistics:
     def test_statistics_with_detector(self) -> None:
         """测试有检测器时包含tr_statistics"""
         self.plugin._tr_detector = MagicMock()
-        self.plugin._tr_detector.get_statistics.return_value = {
-            "total_ranges": 5
-        }
+        self.plugin._tr_detector.get_statistics.return_value = {"total_ranges": 5}
         self.plugin._tr_detect_count = 10
         self.plugin._phase_detect_count = 7
         self.plugin._boundary_fit_count = 3
@@ -516,18 +456,14 @@ class TestGetStatistics:
         assert stats["phase_detect_count"] == 7
         assert stats["boundary_fit_count"] == 3
         assert stats["last_error"] == "prev error"
-        assert stats["tr_statistics"] == {
-            "total_ranges": 5
-        }
+        assert stats["tr_statistics"] == {"total_ranges": 5}
 
     def test_statistics_detector_error_fallback(
         self,
     ) -> None:
         """测试检测器统计出错时返回空字典"""
         self.plugin._tr_detector = MagicMock()
-        self.plugin._tr_detector.get_statistics.side_effect = (
-            Exception("统计失败")
-        )
+        self.plugin._tr_detector.get_statistics.side_effect = Exception("统计失败")
 
         stats = self.plugin.get_statistics()
         assert stats["tr_statistics"] == {}

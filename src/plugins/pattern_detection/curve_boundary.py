@@ -3,6 +3,7 @@
 解决几何拟合代码缺失问题：识别圆弧底、收敛三角形等非线性TR边界
 """
 
+import logging
 import math
 import warnings
 from enum import Enum
@@ -13,6 +14,8 @@ import pandas as pd
 from numpy import typing as npt
 from scipy.interpolate import UnivariateSpline
 from scipy.signal import argrelextrema
+
+logger = logging.getLogger(__name__)
 
 
 class BoundaryType(Enum):
@@ -659,9 +662,15 @@ class CurveBoundaryFitter:
         # 样条曲线拟合
         try:
             # 使用UnivariateSpline进行平滑拟合
-            spline = UnivariateSpline(
-                x_indices, y_values, s=len(pivot_points) * (1 - self.spline_smoothness)
-            )
+            import warnings
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                spline = UnivariateSpline(
+                    x_indices,
+                    y_values,
+                    s=len(pivot_points) * (1 - self.spline_smoothness),
+                )
 
             # 生成拟合点
             x_fine = np.linspace(0, len(pivot_points) - 1, 100)
@@ -713,7 +722,8 @@ class CurveBoundaryFitter:
                 "num_points": len(pivot_points),
             }
 
-        except Exception:
+        except Exception as e:
+            logger.debug("边界拟合失败: %s", e)
             return None
 
     def _classify_boundary(
@@ -974,7 +984,8 @@ class CurveBoundaryFitter:
                 return float(atr_value)
             return 0.0
 
-        except Exception:
+        except Exception as e:
+            logger.debug("ATR 计算失败: %s", e)
             return 0.0
 
         try:
@@ -1001,7 +1012,8 @@ class CurveBoundaryFitter:
                 return float(atr)
             return 0.0
 
-        except Exception:
+        except Exception as e:
+            logger.debug("ATR 计算失败: %s", e)
             return 0.0
 
     def record_boundary_event(self, tr_result: dict[str, Any]) -> None:
@@ -1060,7 +1072,6 @@ if __name__ == "__main__":
     )
 
     if trading_range_result:
-
         # 记录事件
         fitter.record_boundary_event(trading_range_result)
     else:

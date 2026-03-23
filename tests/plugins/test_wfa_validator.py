@@ -12,11 +12,17 @@ def _make_h4_data(n_bars: int = 1000) -> pd.DataFrame:
     dates = pd.date_range("2024-01-01", periods=n_bars, freq="4h")
     np.random.seed(42)
     close = 2000 + np.cumsum(np.random.randn(n_bars) * 10)
+    opens = close - np.random.rand(n_bars) * 5
+    highs = close + np.abs(np.random.randn(n_bars) * 10)
+    lows = close - np.abs(np.random.randn(n_bars) * 10)
+    # 确保 OHLC 有效性: high >= max(open, close), low <= min(open, close)
+    highs = np.maximum(highs, np.maximum(opens, close))
+    lows = np.minimum(lows, np.minimum(opens, close))
     return pd.DataFrame(
         {
-            "open": close - np.random.rand(n_bars) * 5,
-            "high": close + np.abs(np.random.randn(n_bars) * 10),
-            "low": close - np.abs(np.random.randn(n_bars) * 10),
+            "open": opens,
+            "high": highs,
+            "low": lows,
             "close": close,
             "volume": np.random.randint(100, 10000, n_bars).astype(float),
         },

@@ -26,7 +26,11 @@ def baseline_config():
 @pytest.fixture
 def ga(baseline_config):
     cfg = GAConfig(
-        population_size=10, max_generations=3, elite_count=2, tournament_size=3
+        population_size=10,
+        max_generations=3,
+        elite_count=2,
+        tournament_size=3,
+        mutation_rate=0.9,  # 测试中使用高变异率确保确定性
     )
     return GeneticAlgorithm(baseline_config, cfg)
 

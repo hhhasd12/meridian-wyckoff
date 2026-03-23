@@ -27,8 +27,8 @@ def system():
     wa.discover_and_load()
 
     pm = wa.plugin_manager.get_plugin("position_manager")
-    if pm is not None and hasattr(pm, "_manager") and pm._manager is not None:
-        pm._manager.positions.clear()
+    if pm is not None and hasattr(pm, "_manager") and pm._manager is not None:  # type: ignore[attr-defined]
+        pm._manager.positions.clear()  # type: ignore[attr-defined]
 
     yield wa
 
@@ -55,7 +55,7 @@ class TestMultiPluginEventChain:
             {
                 "symbol": "BTC/USDT",
                 "data_dict": data_dict,
-                "timeframes": ["H4", "H1", "M15"],
+                "timeframes": ["H4", "H1", "M15", "M5"],
             },
         )
 
@@ -125,7 +125,7 @@ class TestMultiPluginEventChain:
                 {
                     "symbol": "BTC/USDT",
                     "data_dict": data_dict,
-                    "timeframes": ["H4", "H1", "M15"],
+                    "timeframes": ["H4", "H1", "M15", "M5"],
                 },
             )
 

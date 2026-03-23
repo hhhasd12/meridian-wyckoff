@@ -1,5 +1,5 @@
 name: position_manager
-version: "1.0.0"
+version: "3.0.0"
 description: "仓位管理插件 - 管理持仓生命周期、止损止盈、信号反转出场"
 author: "Wyckoff Engine Team"
 entry_point: plugin

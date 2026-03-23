@@ -105,7 +105,7 @@ class ConfigLoader:
         self,
         config_paths: list[Union[str, Path]],
         merge: bool = True,
-    ) -> dict[str, Any]:
+    ) -> Union[dict[str, Any], list[dict[str, Any]]]:
         """
         加载多个配置文件
 
@@ -203,7 +203,11 @@ class ConfigLoader:
         result = base.copy()
 
         for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
                 result[key] = self._merge_dict(result[key], value)
             else:
                 result[key] = value

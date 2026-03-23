@@ -132,9 +132,7 @@ class TestExchangeConnectorUnload:
         """测试卸载清除交易所缓存"""
         # 模拟已连接的交易所
         self.plugin._exchanges = {"binance": MagicMock()}
-        self.plugin._connection_status = {
-            "binance": {"status": "connected"}
-        }
+        self.plugin._connection_status = {"binance": {"status": "connected"}}
 
         self.plugin.on_unload()
 
@@ -160,9 +158,7 @@ class TestExchangeConnectorConfig:
 
     def test_config_update_default_exchange(self) -> None:
         """测试更新默认交易所"""
-        self.plugin.on_config_update(
-            {"default_exchange": "bybit"}
-        )
+        self.plugin.on_config_update({"default_exchange": "bybit"})
         assert self.plugin._default_exchange == "bybit"
 
     def test_config_update_timeout(self) -> None:
@@ -178,13 +174,9 @@ class TestExchangeConnectorConfig:
     def test_config_update_proxy_clears_cache(self) -> None:
         """测试更新代理时清除交易所缓存"""
         self.plugin._exchanges = {"binance": MagicMock()}
-        self.plugin._connection_status = {
-            "binance": {"status": "connected"}
-        }
+        self.plugin._connection_status = {"binance": {"status": "connected"}}
 
-        self.plugin.on_config_update(
-            {"proxy": "http://new-proxy:8080"}
-        )
+        self.plugin.on_config_update({"proxy": "http://new-proxy:8080"})
 
         assert self.plugin._proxy == "http://new-proxy:8080"
         assert len(self.plugin._exchanges) == 0
@@ -256,30 +248,22 @@ class TestExchangeConnectorGetExchange:
         """测试获取默认交易所"""
         mock_ccxt = MagicMock()
         mock_exchange = MagicMock()
-        mock_ccxt.binance = MagicMock(
-            return_value=mock_exchange
-        )
+        mock_ccxt.binance = MagicMock(return_value=mock_exchange)
 
-        with patch.dict(
-            sys.modules, {"ccxt": mock_ccxt}
-        ):
+        with patch.dict(sys.modules, {"ccxt": mock_ccxt}):
             result = self.plugin.get_exchange()
 
         assert result == mock_exchange
         assert "binance" in self.plugin._exchanges
-        self.plugin.emit_event.assert_called_once()
+        self.plugin.emit_event.assert_called_once()  # type: ignore[attr-defined]
 
     def test_get_exchange_named(self) -> None:
         """测试获取指定交易所"""
         mock_ccxt = MagicMock()
         mock_exchange = MagicMock()
-        mock_ccxt.bybit = MagicMock(
-            return_value=mock_exchange
-        )
+        mock_ccxt.bybit = MagicMock(return_value=mock_exchange)
 
-        with patch.dict(
-            sys.modules, {"ccxt": mock_ccxt}
-        ):
+        with patch.dict(sys.modules, {"ccxt": mock_ccxt}):
             result = self.plugin.get_exchange("bybit")
 
         assert result == mock_exchange
@@ -291,9 +275,7 @@ class TestExchangeConnectorGetExchange:
         self.plugin._exchanges["binance"] = mock_exchange
 
         mock_ccxt = MagicMock()
-        with patch.dict(
-            sys.modules, {"ccxt": mock_ccxt}
-        ):
+        with patch.dict(sys.modules, {"ccxt": mock_ccxt}):
             result = self.plugin.get_exchange("binance")
 
         assert result == mock_exchange
@@ -307,27 +289,17 @@ class TestExchangeConnectorGetExchange:
         """测试ccxt不支持的交易所"""
         mock_ccxt = MagicMock(spec=[])
 
-        with patch.dict(
-            sys.modules, {"ccxt": mock_ccxt}
-        ):
-            with pytest.raises(
-                ValueError, match="ccxt不支持"
-            ):
+        with patch.dict(sys.modules, {"ccxt": mock_ccxt}):
+            with pytest.raises(ValueError, match="ccxt不支持"):
                 self.plugin.get_exchange("binance")
 
     def test_get_exchange_connection_error(self) -> None:
         """测试连接错误"""
         mock_ccxt = MagicMock()
-        mock_ccxt.binance = MagicMock(
-            side_effect=RuntimeError("network error")
-        )
+        mock_ccxt.binance = MagicMock(side_effect=RuntimeError("network error"))
 
-        with patch.dict(
-            sys.modules, {"ccxt": mock_ccxt}
-        ):
-            with pytest.raises(
-                ConnectionError, match="无法连接"
-            ):
+        with patch.dict(sys.modules, {"ccxt": mock_ccxt}):
+            with pytest.raises(ConnectionError, match="无法连接"):
                 self.plugin.get_exchange("binance")
 
         assert self.plugin._error_count == 1
@@ -336,13 +308,9 @@ class TestExchangeConnectorGetExchange:
         """测试带API密钥的连接"""
         mock_ccxt = MagicMock()
         mock_exchange = MagicMock()
-        mock_ccxt.binance = MagicMock(
-            return_value=mock_exchange
-        )
+        mock_ccxt.binance = MagicMock(return_value=mock_exchange)
 
-        with patch.dict(
-            sys.modules, {"ccxt": mock_ccxt}
-        ):
+        with patch.dict(sys.modules, {"ccxt": mock_ccxt}):
             self.plugin.get_exchange("binance")
 
         call_args = mock_ccxt.binance.call_args[0][0]
@@ -353,13 +321,9 @@ class TestExchangeConnectorGetExchange:
     def test_get_exchange_connection_status(self) -> None:
         """测试连接状态记录"""
         mock_ccxt = MagicMock()
-        mock_ccxt.binance = MagicMock(
-            return_value=MagicMock()
-        )
+        mock_ccxt.binance = MagicMock(return_value=MagicMock())
 
-        with patch.dict(
-            sys.modules, {"ccxt": mock_ccxt}
-        ):
+        with patch.dict(sys.modules, {"ccxt": mock_ccxt}):
             self.plugin.get_exchange("binance")
 
         status = self.plugin._connection_status["binance"]
@@ -384,18 +348,13 @@ class TestExchangeConnectorDisconnect:
     def test_disconnect_single(self) -> None:
         """测试断开单个交易所"""
         self.plugin._exchanges["binance"] = MagicMock()
-        self.plugin._connection_status["binance"] = {
-            "status": "connected"
-        }
+        self.plugin._connection_status["binance"] = {"status": "connected"}
 
         self.plugin.disconnect("binance")
 
         assert "binance" not in self.plugin._exchanges
-        assert (
-            "binance"
-            not in self.plugin._connection_status
-        )
-        self.plugin.emit_event.assert_called_once_with(
+        assert "binance" not in self.plugin._connection_status
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore[attr-defined]
             "exchange.disconnected",
             {"exchange": "binance"},
         )
@@ -404,23 +363,19 @@ class TestExchangeConnectorDisconnect:
         """测试断开所有交易所"""
         self.plugin._exchanges["binance"] = MagicMock()
         self.plugin._exchanges["bybit"] = MagicMock()
-        self.plugin._connection_status["binance"] = {
-            "status": "connected"
-        }
-        self.plugin._connection_status["bybit"] = {
-            "status": "connected"
-        }
+        self.plugin._connection_status["binance"] = {"status": "connected"}
+        self.plugin._connection_status["bybit"] = {"status": "connected"}
 
         self.plugin.disconnect()
 
         assert len(self.plugin._exchanges) == 0
         assert len(self.plugin._connection_status) == 0
-        assert self.plugin.emit_event.call_count == 2
+        assert self.plugin.emit_event.call_count == 2  # type: ignore[attr-defined]
 
     def test_disconnect_nonexistent(self) -> None:
         """测试断开不存在的交易所"""
         self.plugin.disconnect("nonexistent")
-        self.plugin.emit_event.assert_not_called()
+        self.plugin.emit_event.assert_not_called()  # type: ignore[attr-defined]
 
     def test_disconnect_empty(self) -> None:
         """测试空状态断开所有"""
@@ -441,9 +396,7 @@ class TestExchangeConnectorFetchOhlcv:
         self.plugin.emit_event = MagicMock(return_value=1)
         # mock get_exchange 避免 ccxt 导入
         self.mock_exchange = MagicMock()
-        self.plugin.get_exchange = MagicMock(
-            return_value=self.mock_exchange
-        )
+        self.plugin.get_exchange = MagicMock(return_value=self.mock_exchange)
 
     def test_fetch_ohlcv_success(self) -> None:
         """测试成功获取OHLCV"""
@@ -455,9 +408,7 @@ class TestExchangeConnectorFetchOhlcv:
         df = self.plugin.fetch_ohlcv("BTC/USDT")
 
         assert len(df) == 2
-        assert list(df.columns) == [
-            "open", "high", "low", "close", "volume"
-        ]
+        assert list(df.columns) == ["open", "high", "low", "close", "volume"]
         assert df.index.name == "timestamp"
         assert self.plugin._fetch_count == 1
 
@@ -490,14 +441,12 @@ class TestExchangeConnectorFetchOhlcv:
 
         self.plugin.fetch_ohlcv("BTC/USDT")
 
-        self.plugin.emit_event.assert_called_once()
-        call_args = self.plugin.emit_event.call_args
+        self.plugin.emit_event.assert_called_once()  # type: ignore[attr-defined]
+        call_args = self.plugin.emit_event.call_args  # type: ignore[attr-defined]
         assert call_args[0][0] == "exchange.ohlcv_fetched"
         assert call_args[0][1]["symbol"] == "BTC/USDT"
 
-    @patch(
-        "src.plugins.exchange_connector.plugin.time.sleep"
-    )
+    @patch("src.plugins.exchange_connector.plugin.time.sleep")
     def test_fetch_ohlcv_retry(self, mock_sleep) -> None:
         """测试OHLCV获取重试"""
         self.mock_exchange.fetch_ohlcv.side_effect = [
@@ -511,20 +460,12 @@ class TestExchangeConnectorFetchOhlcv:
         assert mock_sleep.call_count == 1
         assert self.plugin._error_count == 1
 
-    @patch(
-        "src.plugins.exchange_connector.plugin.time.sleep"
-    )
-    def test_fetch_ohlcv_all_retries_fail(
-        self, mock_sleep
-    ) -> None:
+    @patch("src.plugins.exchange_connector.plugin.time.sleep")
+    def test_fetch_ohlcv_all_retries_fail(self, mock_sleep) -> None:
         """测试OHLCV所有重试都失败"""
-        self.mock_exchange.fetch_ohlcv.side_effect = (
-            RuntimeError("timeout")
-        )
+        self.mock_exchange.fetch_ohlcv.side_effect = RuntimeError("timeout")
 
-        with pytest.raises(
-            RuntimeError, match="获取OHLCV失败"
-        ):
+        with pytest.raises(RuntimeError, match="获取OHLCV失败"):
             self.plugin.fetch_ohlcv("BTC/USDT")
 
         assert self.plugin._error_count == 3
@@ -555,9 +496,7 @@ class TestExchangeConnectorFetchTicker:
         self.plugin.on_load()
         self.plugin.emit_event = MagicMock(return_value=1)
         self.mock_exchange = MagicMock()
-        self.plugin.get_exchange = MagicMock(
-            return_value=self.mock_exchange
-        )
+        self.plugin.get_exchange = MagicMock(return_value=self.mock_exchange)
 
     def test_fetch_ticker_success(self) -> None:
         """测试成功获取Ticker"""
@@ -580,35 +519,29 @@ class TestExchangeConnectorFetchTicker:
 
         self.plugin.fetch_ticker("BTC/USDT")
 
-        self.plugin.emit_event.assert_called_once()
-        call_args = self.plugin.emit_event.call_args
+        self.plugin.emit_event.assert_called_once()  # type: ignore[attr-defined]
+        call_args = self.plugin.emit_event.call_args  # type: ignore[attr-defined]
         assert call_args[0][0] == "exchange.ticker_fetched"
         assert call_args[0][1]["price"] == 50000.0
 
     def test_fetch_ticker_error(self) -> None:
         """测试Ticker获取失败"""
-        self.mock_exchange.fetch_ticker.side_effect = (
-            RuntimeError("API error")
-        )
+        self.mock_exchange.fetch_ticker.side_effect = RuntimeError("API error")
 
-        with pytest.raises(
-            RuntimeError, match="获取Ticker失败"
-        ):
+        with pytest.raises(RuntimeError, match="获取Ticker失败"):
             self.plugin.fetch_ticker("BTC/USDT")
 
         assert self.plugin._error_count == 1
 
     def test_fetch_ticker_error_emits_event(self) -> None:
         """测试Ticker错误发送事件"""
-        self.mock_exchange.fetch_ticker.side_effect = (
-            RuntimeError("API error")
-        )
+        self.mock_exchange.fetch_ticker.side_effect = RuntimeError("API error")
 
         with pytest.raises(RuntimeError):
             self.plugin.fetch_ticker("BTC/USDT")
 
         # 应该发送 exchange.error 事件
-        call_args = self.plugin.emit_event.call_args
+        call_args = self.plugin.emit_event.call_args  # type: ignore[attr-defined]
         assert call_args[0][0] == "exchange.error"
         assert call_args[0][1]["operation"] == "fetch_ticker"
 
@@ -624,9 +557,7 @@ class TestExchangeConnectorAsync:
         self.plugin.on_load()
         self.plugin.emit_event = MagicMock(return_value=1)
         self.mock_exchange = MagicMock()
-        self.plugin.get_exchange = MagicMock(
-            return_value=self.mock_exchange
-        )
+        self.plugin.get_exchange = MagicMock(return_value=self.mock_exchange)
 
     @pytest.mark.asyncio
     async def test_fetch_ohlcv_async_success(self) -> None:

@@ -43,12 +43,16 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  // Disposed flag — prevents any access to LWC objects after chart.remove()
+  const disposedRef = useRef(false);
   const candles = useStore((s) => s.candles);
 
   // Initialize chart
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
+    disposedRef.current = false;
 
     const chart = createChart(container, {
       layout: {
@@ -98,37 +102,58 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
 
-    // Auto-resize
+    // Auto-resize (guard against post-dispose callbacks)
     const ro = new ResizeObserver((entries) => {
+      if (disposedRef.current) return;
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        chart.applyOptions({ width, height });
+        try {
+          chart.applyOptions({ width, height });
+        } catch {
+          // chart already disposed
+        }
       }
     });
     ro.observe(container);
 
     return () => {
-      ro.disconnect();
-      chart.remove();
+      // Mark disposed FIRST — prevents any concurrent access
+      disposedRef.current = true;
+      // Clear refs BEFORE remove — other useEffects check refs
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      // Then clean up
+      ro.disconnect();
+      try {
+        chart.remove();
+      } catch {
+        // already disposed (e.g., StrictMode double-cleanup)
+      }
     };
   }, [containerRef]);
 
   // Update data when candles change
   useEffect(() => {
+    if (disposedRef.current) return;
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
     if (candles.length === 0) return;
 
     const chartData = candles.map(toChartCandle);
     const volumeData = candles.map(toVolumeBar);
 
-    candleSeriesRef.current.setData(chartData);
-    volumeSeriesRef.current.setData(volumeData);
+    try {
+      candleSeriesRef.current.setData(chartData);
+      volumeSeriesRef.current.setData(volumeData);
+    } catch {
+      // chart disposed between check and setData
+    }
   }, [candles]);
 
   const getRefs = useCallback((): ChartRefs => {
+    if (disposedRef.current) {
+      return { chart: null, candleSeries: null, volumeSeries: null };
+    }
     return {
       chart: chartRef.current,
       candleSeries: candleSeriesRef.current,

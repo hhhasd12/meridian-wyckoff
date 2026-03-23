@@ -9,7 +9,7 @@
 """
 
 import logging
-from typing import Callable, Dict, List, Set
+from typing import Callable, Dict, List, Optional, Set
 
 from src.kernel.types import StateEvidence
 
@@ -47,13 +47,17 @@ class TransitionGuard:
         "LPSY": {"mSOW", "MSOW"},
         "mSOW": {"MSOW"},
         "MSOW": {"DOWNTREND"},
-        # 趋势 → 再积累/再派发
-        "UPTREND": {"RE_ACCUMULATION", "PSY"},
-        "DOWNTREND": {"RE_DISTRIBUTION", "PS", "SC"},
-        # 再积累/再派发 → 恢复趋势或反转
-        "RE_ACCUMULATION": {"UPTREND", "PSY"},  # 继续上涨 或 转派发
-        "RE_DISTRIBUTION": {"DOWNTREND", "PS"},  # 继续下跌 或 转吸筹
+        # 趋势 → 再积累/再派发 或 回IDLE重新检测
+        "UPTREND": {"RE_ACCUMULATION", "PSY", "IDLE"},
+        "DOWNTREND": {"RE_DISTRIBUTION", "PS", "SC", "IDLE"},
+        # 再积累/再派发 → 恢复趋势或反转 或 回IDLE
+        "RE_ACCUMULATION": {"UPTREND", "PSY", "IDLE"},  # 继续上涨 或 转派发
+        "RE_DISTRIBUTION": {"DOWNTREND", "PS", "IDLE"},  # 继续下跌 或 转吸筹
     }
+
+    # 模式约束：各 MarketMode 下允许的事件子集
+    _TRENDING_TARGETS: Set[str] = {"PS", "SC", "PSY", "BC"}
+    _TRANSITIONING_TARGETS: Set[str] = {"AR", "ST", "AR_DIST", "ST_DIST", "IDLE"}
 
     @staticmethod
     def is_valid_transition(from_state: str, to_state: str) -> bool:
@@ -70,16 +74,30 @@ class TransitionGuard:
         return to_state in valid
 
     @staticmethod
-    def get_valid_targets(from_state: str) -> Set[str]:
+    def get_valid_targets(from_state: str, mode: Optional[str] = None) -> Set[str]:
         """获取从当前状态可以转换到的所有合法目标
 
         Args:
             from_state: 当前状态
+            mode: 可选的 MarketMode.value 字符串 —
+                  "trending" 只返回停止行为入口,
+                  "transitioning" 只返回区间形成事件,
+                  "ranging" 或 None 返回原有完整白名单
 
         Returns:
             合法目标状态集合
         """
-        return TransitionGuard.VALID_TRANSITIONS.get(from_state, set())
+        full = TransitionGuard.VALID_TRANSITIONS.get(from_state, set())
+
+        if mode is None or mode == "ranging":
+            return full
+
+        if mode == "trending":
+            return full & TransitionGuard._TRENDING_TARGETS
+        if mode == "transitioning":
+            return full & TransitionGuard._TRANSITIONING_TARGETS
+
+        return full  # 未知模式，返回完整白名单
 
     @staticmethod
     def check_prerequisite_evidence(

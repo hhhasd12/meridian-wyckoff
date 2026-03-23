@@ -74,15 +74,15 @@ class WeightSystemPlugin(BasePlugin):
             new_config: 新的配置字典
         """
         if self._weight_filter is not None:
-            from src.plugins.weight_system.period_weight_filter import PeriodWeightFilter
+            from src.plugins.weight_system.period_weight_filter import (
+                PeriodWeightFilter,
+            )
 
             filter_config = {}
             if "weights" in new_config:
                 filter_config["weights"] = new_config["weights"]
             if "regime_adjustments" in new_config:
-                filter_config["regime_adjustments"] = (
-                    new_config["regime_adjustments"]
-                )
+                filter_config["regime_adjustments"] = new_config["regime_adjustments"]
             if "normalize" in new_config:
                 filter_config["normalize"] = new_config["normalize"]
             if "min_weight" in new_config:
@@ -137,9 +137,7 @@ class WeightSystemPlugin(BasePlugin):
             },
         )
 
-    def get_weights(
-        self, regime: str = "UNKNOWN"
-    ) -> Dict[str, float]:
+    def get_weights(self, regime: str = "UNKNOWN") -> Dict[str, float]:
         """获取指定市场体制下的权重
 
         Args:
@@ -160,10 +158,13 @@ class WeightSystemPlugin(BasePlugin):
             result = {tf.value: w for tf, w in raw_weights.items()}
             self._weights_calc_count += 1
 
-            self.emit_event("weights_calculated", {
-                "regime": regime,
-                "weights": result,
-            })
+            self.emit_event(
+                "weight_system.weights_calculated",
+                {
+                    "regime": regime,
+                    "weights": result,
+                },
+            )
 
             return result
         except Exception as e:
@@ -189,9 +190,7 @@ class WeightSystemPlugin(BasePlugin):
             RuntimeError: 当插件未加载时
         """
         if self._weight_filter is None:
-            raise RuntimeError(
-                "WeightSystemPlugin 未加载，无法计算加权分数"
-            )
+            raise RuntimeError("WeightSystemPlugin 未加载，无法计算加权分数")
 
         try:
             score = self._weight_filter.calculate_weighted_score(
@@ -199,11 +198,14 @@ class WeightSystemPlugin(BasePlugin):
             )
             self._score_calc_count += 1
 
-            self.emit_event("weighted_score_calculated", {
-                "regime": regime,
-                "score": score,
-                "input_count": len(timeframe_scores),
-            })
+            self.emit_event(
+                "weight_system.weighted_score_calculated",
+                {
+                    "regime": regime,
+                    "score": score,
+                    "input_count": len(timeframe_scores),
+                },
+            )
 
             return score
         except Exception as e:
@@ -229,9 +231,7 @@ class WeightSystemPlugin(BasePlugin):
             RuntimeError: 当插件未加载时
         """
         if self._weight_filter is None:
-            raise RuntimeError(
-                "WeightSystemPlugin 未加载，无法生成加权决策"
-            )
+            raise RuntimeError("WeightSystemPlugin 未加载，无法生成加权决策")
 
         try:
             decision = self._weight_filter.get_weighted_decision(
@@ -239,11 +239,14 @@ class WeightSystemPlugin(BasePlugin):
             )
             self._decision_count += 1
 
-            self.emit_event("weighted_decision_made", {
-                "regime": regime,
-                "primary_bias": decision.get("primary_bias"),
-                "confidence": decision.get("confidence"),
-            })
+            self.emit_event(
+                "weight_system.weighted_decision_made",
+                {
+                    "regime": regime,
+                    "primary_bias": decision.get("primary_bias"),
+                    "confidence": decision.get("confidence"),
+                },
+            )
 
             return decision
         except Exception as e:
@@ -269,27 +272,24 @@ class WeightSystemPlugin(BasePlugin):
             RuntimeError: 当插件未加载时
         """
         if self._weight_filter is None:
-            raise RuntimeError(
-                "WeightSystemPlugin 未加载，无法推荐时间框架"
-            )
+            raise RuntimeError("WeightSystemPlugin 未加载，无法推荐时间框架")
 
         try:
-            recommendations = (
-                self._weight_filter.recommend_timeframe_focus(
-                    regime, bias
-                )
+            recommendations = self._weight_filter.recommend_timeframe_focus(
+                regime, bias
             )
             self._recommend_count += 1
 
-            self.emit_event("timeframe_focus_recommended", {
-                "regime": regime,
-                "bias": bias,
-                "top_timeframe": (
-                    recommendations[0][0]
-                    if recommendations
-                    else None
-                ),
-            })
+            self.emit_event(
+                "weight_system.timeframe_focus_recommended",
+                {
+                    "regime": regime,
+                    "bias": bias,
+                    "top_timeframe": (
+                        recommendations[0][0] if recommendations else None
+                    ),
+                },
+            )
 
             return recommendations
         except Exception as e:
@@ -307,9 +307,7 @@ class WeightSystemPlugin(BasePlugin):
             RuntimeError: 当插件未加载时
         """
         if self._weight_filter is None:
-            raise RuntimeError(
-                "WeightSystemPlugin 未加载，无法获取配置报告"
-            )
+            raise RuntimeError("WeightSystemPlugin 未加载，无法获取配置报告")
 
         return self._weight_filter.get_config_report()
 

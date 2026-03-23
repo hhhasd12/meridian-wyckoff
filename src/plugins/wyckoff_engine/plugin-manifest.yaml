@@ -1,5 +1,5 @@
 name: wyckoff_engine
-version: "1.0.0"
+version: "3.0.0"
 description: "统一信号引擎 — 实盘和进化的唯一信号来源"
 author: "Wyckoff Engine Team"
 entry_point: plugin

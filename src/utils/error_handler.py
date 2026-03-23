@@ -54,7 +54,7 @@ class ErrorContext:
     severity: ErrorSeverity
     category: ErrorCategory
     args: tuple = ()
-    kwargs: dict[str, Any] = None
+    kwargs: Optional[dict[str, Any]] = None
 
     def __post_init__(self):
         if self.kwargs is None:
@@ -193,7 +193,7 @@ def log_execution_time(
 
                 return result
 
-            except Exception:
+            except Exception as e:
                 execution_time = time.time() - start_time
                 func_logger.error(
                     f"函数 {func.__name__} 执行失败，耗时: {execution_time:.3f}s",
@@ -251,7 +251,8 @@ def retry(
                             f"函数 {func.__name__} 达到最大重试次数 {max_attempts}, 最终失败"
                         )
 
-            raise last_exception
+            if last_exception is not None:
+                raise last_exception
 
         return wrapper
 

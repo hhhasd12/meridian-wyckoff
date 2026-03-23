@@ -192,7 +192,7 @@ class EvolutionAdvisorPlugin(BasePlugin):
         if not hasattr(self_correction, "get_mistake_book"):
             return []
 
-        mistake_book = self_correction.get_mistake_book()
+        mistake_book = self_correction.get_mistake_book()  # type: ignore[attr-defined]
         if mistake_book is None:
             return []
 

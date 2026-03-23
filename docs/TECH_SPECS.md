@@ -4,7 +4,7 @@
 
 ### 1.1 DataFrame 结构
 
-基于当前代码库 (`src/core/data_pipeline.py`, `src/data/binance_fetcher.py`) 的事实标准：
+基于当前代码库 (`src/plugins/data_pipeline.py`, `src/data/binance_fetcher.py`) 的事实标准：
 
 #### 列名规范
 - **当前标准**: 全小写英文单词
@@ -141,7 +141,7 @@ def process_candle(candle: pd.Series, context: Dict[str, Any]) -> str:
 
 ### 3.2 数据结构定义
 
-#### RawCandle (src/core/data_sanitizer.py)
+#### RawCandle (src/plugins/data_sanitizer.py)
 ```python
 @dataclass
 class RawCandle:
@@ -155,7 +155,7 @@ class RawCandle:
     exchange: Optional[str] = None
 ```
 
-#### HistoricalContext (src/core/data_sanitizer.py)
+#### HistoricalContext (src/plugins/data_sanitizer.py)
 ```python
 @dataclass
 class HistoricalContext:
@@ -183,7 +183,7 @@ class HistoricalContext:
 - **talib**: 技术指标使用自定义实现
 
 ### 4.3 技术指标计算
-- **ATR**: 自定义实现 (src/core/data_sanitizer.py)
+- **ATR**: 自定义实现 (src/plugins/data_sanitizer.py)
 - **移动平均**: pandas内置 `rolling().mean()`
 - **成交量分析**: 自定义VSA算法
 - **价格模式**: 自定义威科夫模式检测
@@ -192,7 +192,7 @@ class HistoricalContext:
 
 ### 5.1 数据管道标准化示例
 ```python
-# src/core/data_pipeline.py 中的标准实现
+# src/plugins/data_pipeline.py 中的标准实现
 async def fetch_ccxt_data(self, request: DataRequest) -> pd.DataFrame:
     # 获取原始数据
     ohlcv = exchange.fetch_ohlcv(...)
@@ -217,7 +217,7 @@ async def fetch_ccxt_data(self, request: DataRequest) -> pd.DataFrame:
 
 ### 5.2 数据清洗示例
 ```python
-# src/core/data_sanitizer.py 中的标准实现
+# src/plugins/data_sanitizer.py 中的标准实现
 def sanitize_dataframe(self, df: pd.DataFrame, symbol: str, exchange: str):
     # 验证必要列
     required_columns = ["open", "high", "low", "close", "volume"]
@@ -301,7 +301,7 @@ def sanitize_dataframe(self, df: pd.DataFrame, symbol: str, exchange: str):
 ---
 
 **最后更新**: 2025-02-06  
-**制定依据**: `src/core/data_pipeline.py`, `src/core/data_sanitizer.py`, `src/core/wyckoff_state_machine.py`, `src/data/binance_fetcher.py`  
+**制定依据**: `src/plugins/data_pipeline.py`, `src/plugins/data_sanitizer.py`, `src/plugins/wyckoff_state_machine.py`, `src/data/binance_fetcher.py`  
 **制定人**: 威科夫全自动逻辑引擎技术委员会  
 **审核状态**: 待审核
 

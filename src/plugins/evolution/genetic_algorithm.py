@@ -26,6 +26,33 @@ from src.kernel.types import GAIndividual
 logger = logging.getLogger(__name__)
 
 
+def _evaluate_single(
+    config: Dict[str, Any],
+    data_dict: Dict[str, Any],
+    fitness_key: str,
+) -> float:
+    """在子进程中评估单个个体（模块级函数，可 pickle）"""
+    import os
+    import warnings
+
+    # 限制每个子进程的线程数，避免 6 个进程各开 12 线程互相争抢
+    os.environ.setdefault("NUMEXPR_MAX_THREADS", "2")
+    os.environ.setdefault("OMP_NUM_THREADS", "2")
+    os.environ.setdefault("MKL_NUM_THREADS", "2")
+
+    warnings.filterwarnings("ignore")
+    from src.plugins.evolution.evaluator import StandardEvaluator
+    from src.plugins.self_correction.mistake_book import MistakeBook
+
+    try:
+        evaluator = StandardEvaluator(mistake_book=MistakeBook())
+        metrics = evaluator(config, data_dict)
+        return metrics.get(fitness_key, 0.0)
+    except Exception as e:
+        logger.debug("适应度评估失败: %s", e)
+        return 0.0
+
+
 # ================================================================
 # GAConfig — 遗传算法超参数
 # ================================================================
@@ -49,16 +76,16 @@ class GAConfig:
         diversity_penalty: 多样性惩罚系数
     """
 
-    population_size: int = 20
-    elite_count: int = 2
+    population_size: int = 50
+    elite_count: int = 5
     tournament_size: int = 3
     crossover_rate: float = 0.7
-    mutation_rate: float = 0.9
-    mutation_strength: float = 0.15
+    mutation_rate: float = 0.25
+    mutation_strength: float = 0.10
     max_generations: int = 50
     fitness_key: str = "COMPOSITE_SCORE"
     convergence_threshold: float = 0.001
-    convergence_patience: int = 5
+    convergence_patience: int = 15
     diversity_penalty: float = 0.05
 
     # 禁止变异的键路径（VSA 核心公式等）
@@ -295,20 +322,192 @@ class GeneticAlgorithm:
         self,
         evaluator_fn: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, float]],
         data_dict: Dict[str, Any],
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> None:
-        """评估种群中所有个体的适应度
+        """评估种群中所有个体的适应度（支持多进程并行）
 
         Args:
             evaluator_fn: 评估函数 (config, data) -> metrics
+            data_dict: 多时间周期数据字典
+            progress_callback: 进度回调，每完成一个个体调用一次
+                               参数: {"completed": int, "total": int, "generation": int,
+                                      "elapsed": float, "eta": float, "workers": int}
             data_dict: 多TF数据
         """
-        for ind in self.population:
+        import os
+        import pickle
+        import sys
+        import time
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        total = len(self.population)
+        t0 = time.time()
+
+        # 多进程并行评估
+        # pickle 序列化 DataFrame 的开销（~1s）远小于单个体回测时间（~80-350s），
+        # 因此即使数据量大也值得并行。
+        # Worker 数限制为 4，留出 CPU 余量给系统和其他程序。
+        use_parallel = True
+
+        try:
+            max_workers = min(6, total)  # 6核并行，12490F留6线程给系统
+            max_workers = max(max_workers, 1)
+            if max_workers >= 2 and use_parallel:
+                # 先测试 evaluator_fn 是否可 pickle（lambda/闭包不行）
+                pickle.dumps(evaluator_fn)
+                self._evaluate_parallel(
+                    evaluator_fn, data_dict, max_workers, t0, total, progress_callback
+                )
+                return
+        except (TypeError, pickle.PicklingError, AttributeError):
+            # evaluator_fn 不可序列化（如测试中的 lambda），回退串行
+            pass
+        except Exception as e:
+            logger.info("多进程评估失败，回退到串行: %s", e)
+
+        # 串行回退
+        self._evaluate_serial(evaluator_fn, data_dict, t0, total, progress_callback)
+
+    def _evaluate_serial(
+        self,
+        evaluator_fn: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, float]],
+        data_dict: Dict[str, Any],
+        t0: float,
+        total: int,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> None:
+        """串行评估（回退方案）"""
+        import sys
+        import time
+
+        for idx, ind in enumerate(self.population):
             try:
                 metrics = evaluator_fn(ind.config, data_dict)
                 ind.fitness = metrics.get(self.config.fitness_key, 0.0)
+                # 根因7修复：存储 BacktestResult 供 AntiOverfit 使用
+                if hasattr(evaluator_fn, "last_backtest_result"):
+                    ind.backtest_result = evaluator_fn.last_backtest_result  # type: ignore[union-attr]
             except Exception as e:
                 logger.warning("评估个体失败: %s", e)
                 ind.fitness = 0.0
+
+            elapsed = time.time() - t0
+            avg_per = elapsed / (idx + 1)
+            eta = avg_per * (total - idx - 1)
+            filled = int(25 * (idx + 1) / total)
+            bar = "█" * filled + "░" * (25 - filled)
+            sys.stderr.write(
+                f"\r  Gen{self.generation} [{bar}] {idx + 1}/{total} "
+                f"fitness={ind.fitness:.4f} "
+                f"({elapsed:.0f}s, ~{eta:.0f}s left)  "
+            )
+            sys.stderr.flush()
+
+            # 进度回调（供前端实时显示）
+            if progress_callback is not None:
+                try:
+                    progress_callback(
+                        {
+                            "completed": idx + 1,
+                            "total": total,
+                            "generation": self.generation,
+                            "elapsed": round(elapsed, 1),
+                            "eta": round(eta, 1),
+                            "workers": 1,
+                            "best_fitness": self.best_individual.fitness
+                            if self.best_individual
+                            else 0.0,
+                        }
+                    )
+                except Exception:
+                    pass
+        sys.stderr.write("\n")
+        sys.stderr.flush()
+
+        # 更新 best_individual（评估后种群 fitness 已更新）
+        self._update_best_individual()
+
+    def _evaluate_parallel(
+        self,
+        evaluator_fn: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, float]],
+        data_dict: Dict[str, Any],
+        max_workers: int,
+        t0: float,
+        total: int,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> None:
+        """多进程并行评估"""
+        import sys
+        import time
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        configs = [ind.config for ind in self.population]
+        fitness_key = self.config.fitness_key
+
+        completed = 0
+        results: Dict[int, float] = {}
+
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_evaluate_single, cfg, data_dict, fitness_key): i
+                for i, cfg in enumerate(configs)
+            }
+
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    results[idx] = future.result(timeout=600)
+                except Exception as e:
+                    logger.warning("并行评估个体 %d 失败: %s", idx, e)
+                    results[idx] = 0.0
+
+                completed += 1
+                elapsed = time.time() - t0
+                avg_per = elapsed / completed
+                eta = avg_per * (total - completed)
+                filled = int(25 * completed / total)
+                bar = "█" * filled + "░" * (25 - filled)
+                sys.stderr.write(
+                    f"\r  Gen{self.generation} [{bar}] {completed}/{total} "
+                    f"[{max_workers}P] "
+                    f"({elapsed:.0f}s, ~{eta:.0f}s left)  "
+                )
+                sys.stderr.flush()
+
+                # 进度回调（供前端实时显示）
+                if progress_callback is not None:
+                    try:
+                        progress_callback(
+                            {
+                                "completed": completed,
+                                "total": total,
+                                "generation": self.generation,
+                                "elapsed": round(elapsed, 1),
+                                "eta": round(eta, 1),
+                                "workers": max_workers,
+                            }
+                        )
+                    except Exception:
+                        pass
+
+        # 写回结果
+        for i, ind in enumerate(self.population):
+            ind.fitness = results.get(i, 0.0)
+
+        # 根因7修复：并行评估后，对最佳个体再做一次串行评估以获取 backtest_result
+        best_ind = max(self.population, key=lambda x: x.fitness)
+        if hasattr(evaluator_fn, "last_backtest_result"):
+            try:
+                evaluator_fn(best_ind.config, data_dict)
+                best_ind.backtest_result = evaluator_fn.last_backtest_result  # type: ignore[union-attr]
+            except Exception:
+                pass
+
+        # 更新 best_individual（评估后种群 fitness 已更新）
+        self._update_best_individual()
+
+        sys.stderr.write("\n")
+        sys.stderr.flush()
 
     def evolve_generation(self) -> List[GAIndividual]:
         """执行一代进化：选择 + 交叉 + 变异 + 精英保留
@@ -373,14 +572,7 @@ class GeneticAlgorithm:
         self.population = new_population
 
         # 更新最佳个体
-        best = max(self.population, key=lambda x: x.fitness)
-        if self.best_individual is None or best.fitness > self.best_individual.fitness:
-            self.best_individual = GAIndividual(
-                config=copy.deepcopy(best.config),
-                fitness=best.fitness,
-                generation=best.generation,
-                config_hash=best.config_hash,
-            )
+        self._update_best_individual()
 
         return self.population
 
@@ -477,6 +669,23 @@ class GeneticAlgorithm:
         canonical = _extract(config)
         return hashlib.md5(canonical.encode()).hexdigest()[:12]
 
+    def _update_best_individual(self) -> None:
+        """更新全局最佳个体（在 evaluate_population 和 evolve_generation 后调用）"""
+        if not self.population:
+            return
+        current_best = max(self.population, key=lambda x: x.fitness)
+        if (
+            self.best_individual is None
+            or current_best.fitness > self.best_individual.fitness
+        ):
+            self.best_individual = GAIndividual(
+                config=copy.deepcopy(current_best.config),
+                fitness=current_best.fitness,
+                generation=current_best.generation,
+                config_hash=current_best.config_hash,
+                backtest_result=current_best.backtest_result,
+            )
+
     def get_best(self) -> Optional[GAIndividual]:
         """获取当前最佳个体"""
         return self.best_individual
@@ -495,3 +704,113 @@ class GeneticAlgorithm:
             "std_fitness": float(np.std(fitnesses)),
             "worst_fitness": min(fitnesses),
         }
+
+    # ================================================================
+    # Checkpoint — 断点续传
+    # ================================================================
+
+    def to_checkpoint(self) -> Dict[str, Any]:
+        """将 GA 运行时状态序列化为可 JSON 持久化的字典
+
+        保存最小状态集：population、generation、best_individual、history。
+        BacktestResult 省略（resume 后重新评估获取），节省存储。
+
+        Returns:
+            可直接 json.dump 的字典
+        """
+
+        def _serialize_individual(ind: GAIndividual) -> Dict[str, Any]:
+            return {
+                "config": ind.config,
+                "fitness": ind.fitness,
+                "generation": ind.generation,
+                "config_hash": ind.config_hash,
+                # backtest_result 故意不保存 — 太大且可重新评估
+            }
+
+        data: Dict[str, Any] = {
+            "version": 1,
+            "generation": self.generation,
+            "baseline": self.baseline,
+            "ga_config": {
+                "population_size": self.config.population_size,
+                "elite_count": self.config.elite_count,
+                "tournament_size": self.config.tournament_size,
+                "crossover_rate": self.config.crossover_rate,
+                "mutation_rate": self.config.mutation_rate,
+                "mutation_strength": self.config.mutation_strength,
+                "max_generations": self.config.max_generations,
+                "fitness_key": self.config.fitness_key,
+                "convergence_threshold": self.config.convergence_threshold,
+                "convergence_patience": self.config.convergence_patience,
+                "diversity_penalty": self.config.diversity_penalty,
+                "frozen_keys": self.config.frozen_keys,
+            },
+            "population": [_serialize_individual(ind) for ind in self.population],
+            "best_individual": (
+                _serialize_individual(self.best_individual)
+                if self.best_individual
+                else None
+            ),
+            "history": self.history,
+        }
+        return data
+
+    @classmethod
+    def from_checkpoint(cls, data: Dict[str, Any]) -> "GeneticAlgorithm":
+        """从 checkpoint 字典恢复 GA 状态
+
+        Args:
+            data: to_checkpoint() 产出的字典
+
+        Returns:
+            恢复状态的 GeneticAlgorithm 实例
+        """
+        ga_cfg_data = data.get("ga_config", {})
+        ga_config = GAConfig(
+            population_size=ga_cfg_data.get("population_size", 50),
+            elite_count=ga_cfg_data.get("elite_count", 5),
+            tournament_size=ga_cfg_data.get("tournament_size", 3),
+            crossover_rate=ga_cfg_data.get("crossover_rate", 0.7),
+            mutation_rate=ga_cfg_data.get("mutation_rate", 0.25),
+            mutation_strength=ga_cfg_data.get("mutation_strength", 0.10),
+            max_generations=ga_cfg_data.get("max_generations", 50),
+            fitness_key=ga_cfg_data.get("fitness_key", "COMPOSITE_SCORE"),
+            convergence_threshold=ga_cfg_data.get("convergence_threshold", 0.001),
+            convergence_patience=ga_cfg_data.get("convergence_patience", 15),
+            diversity_penalty=ga_cfg_data.get("diversity_penalty", 0.05),
+            frozen_keys=ga_cfg_data.get("frozen_keys", []),
+        )
+
+        ga = cls(baseline_config=data["baseline"], config=ga_config)
+        ga.generation = data["generation"]
+        ga.history = data.get("history", [])
+
+        # 恢复种群
+        for ind_data in data.get("population", []):
+            ga.population.append(
+                GAIndividual(
+                    config=ind_data["config"],
+                    fitness=ind_data["fitness"],
+                    generation=ind_data["generation"],
+                    config_hash=ind_data["config_hash"],
+                )
+            )
+
+        # 恢复全局最佳
+        best_data = data.get("best_individual")
+        if best_data:
+            ga.best_individual = GAIndividual(
+                config=best_data["config"],
+                fitness=best_data["fitness"],
+                generation=best_data["generation"],
+                config_hash=best_data["config_hash"],
+            )
+
+        logger.info(
+            "GA 从 checkpoint 恢复: generation=%d, population=%d, best_fitness=%.4f",
+            ga.generation,
+            len(ga.population),
+            ga.best_individual.fitness if ga.best_individual else 0.0,
+        )
+        return ga

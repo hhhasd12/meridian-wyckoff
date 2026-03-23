@@ -9,29 +9,22 @@ polars>=0.20.0  # 高性能数据处理
 scipy>=1.11.0   # 曲线拟合（Pivot Spline Fitting）
 
 # 技术分析
-ta-lib>=0.4.0   # 技术指标（ATR, ADX等）
-# 如果ta-lib安装有问题，可以使用ta（纯Python实现）
+# 如果需要ta-lib可手动安装（C库依赖，非必需）
 ta>=0.10.0
 
 # 可视化
 plotly>=5.17.0
 dash>=2.14.0    # 交互式调试面板
-dash-bootstrap-components>=1.5.0
-
-# 回测引擎
-vectorbt>=0.25.0  # 高性能向量化回测
-backtesting>=0.3.3  # 备用回测引擎
 
 # 数据获取与缓存
 ccxt>=4.1.0     # 加密货币交易所API
-yfinance>=0.2.0  # 股票数据
-redis>=5.0.0    # 状态持久化
 python-dotenv>=1.0.0  # 环境变量管理
 
 # 开发工具
 black>=23.0.0   # 代码格式化
 pylint>=3.0.0   # 代码检查
 pytest>=7.4.0   # 单元测试
+pytest-asyncio>=0.23.0  # 异步测试支持
 pytest-cov>=4.1.0  # 测试覆盖率
 
 # Web Dashboard

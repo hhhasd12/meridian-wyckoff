@@ -57,7 +57,7 @@ export class WsManager {
       };
       this.ws?.send(JSON.stringify(sub));
 
-      // Heartbeat every 30s
+      // Heartbeat every 30s (backup — server also pings every 15s)
       this.pingTimer = setInterval(() => {
         if (this.ws?.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({ type: "ping" }));
@@ -68,6 +68,11 @@ export class WsManager {
     this.ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string) as WsServerMessage;
+        // 响应服务端主动 ping，回 pong 保持连接活跃
+        if (msg.type === "ping") {
+          this.ws?.send(JSON.stringify({ type: "pong" }));
+          return;
+        }
         this.onMessage(msg);
       } catch {
         // Ignore malformed messages

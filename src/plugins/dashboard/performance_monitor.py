@@ -28,8 +28,6 @@ import numpy as np
 # 导入相关模块
 try:
     from src.plugins.self_correction.mistake_book import MistakeBook
-    from src.plugins.evolution.weight_variator_legacy import WeightVariator
-    from src.plugins.evolution.wfa_backtester import WFABacktester
 except ImportError:
     # 备用导入：这些模块可能未安装
     pass

@@ -64,6 +64,8 @@ class PositionJournal:
             try:
                 with open(self.journal_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
             except OSError as e:
                 logger.error("写入日志失败: %s", e)
 
@@ -212,11 +214,11 @@ class PositionJournal:
                         entry["position"]["original_size"] = position.original_size
                         entry["position"]["entry_atr"] = position.entry_atr
                         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
 
-                # 原子替换：删旧文件，改名新文件
-                if os.path.exists(self.journal_path):
-                    os.remove(self.journal_path)
-                os.rename(tmp_path, self.journal_path)
+                # 原子替换（os.replace 在 Windows 上也可覆盖已存在文件）
+                os.replace(tmp_path, self.journal_path)
 
                 logger.info("日志压缩完成: 保留 %d 个 open positions", len(positions))
             except OSError as e:
@@ -272,6 +274,7 @@ class PositionJournal:
             entry_signal=entry_signal,
             original_size=float(data.get("original_size", data["size"])),
             entry_atr=float(data.get("entry_atr", 0.0)),
+            leverage=float(data.get("leverage", 1.0)),
             status=status,
             trailing_stop_activated=bool(data.get("trailing_stop_activated", False)),
             partial_profits_taken=partial_profits,

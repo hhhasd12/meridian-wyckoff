@@ -44,9 +44,7 @@ class TestWyckoffSMInit:
 class TestWyckoffSMLoadUnload:
     """测试加载/卸载"""
 
-    @patch(
-        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.EnhancedWyckoffStateMachine"
-    )
+    @patch("src.plugins.wyckoff_state_machine.state_machine_v4.WyckoffStateMachineV4")
     def test_load_success(self, mock_esm: MagicMock) -> None:
         plugin = WyckoffStateMachinePlugin()
         plugin.on_load()
@@ -56,7 +54,7 @@ class TestWyckoffSMLoadUnload:
         assert plugin._state_machine is plugin._enhanced_sm
 
     @patch(
-        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.EnhancedWyckoffStateMachine",
+        "src.plugins.wyckoff_state_machine.state_machine_v4.WyckoffStateMachineV4",
         side_effect=ImportError("not found"),
     )
     def test_load_import_error(self, mock_cls: MagicMock) -> None:
@@ -67,7 +65,7 @@ class TestWyckoffSMLoadUnload:
         assert plugin._enhanced_sm is None
 
     @patch(
-        "src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy.EnhancedWyckoffStateMachine",
+        "src.plugins.wyckoff_state_machine.state_machine_v4.WyckoffStateMachineV4",
         side_effect=RuntimeError("init fail"),
     )
     def test_load_runtime_error(self, mock_esm: MagicMock) -> None:

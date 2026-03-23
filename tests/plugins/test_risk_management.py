@@ -109,9 +109,7 @@ class TestRiskManagementPluginLifecycle:
 
     @patch("src.plugins.risk_management.anomaly_validator.AnomalyValidator")
     @patch("src.plugins.risk_management.circuit_breaker.CircuitBreaker")
-    def test_on_unload(
-        self, mock_cb_cls: MagicMock, mock_av_cls: MagicMock
-    ) -> None:
+    def test_on_unload(self, mock_cb_cls: MagicMock, mock_av_cls: MagicMock) -> None:
         """测试卸载清理"""
         self.plugin.on_load()
         self.plugin._quality_update_count = 10
@@ -252,7 +250,7 @@ class TestCircuitBreakerFunctions:
 
         assert result is False
         assert self.plugin._quality_update_count == 1
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore
             "risk_management.data_quality_updated",
             {"tripped": False, "status": "NORMAL"},
         )
@@ -267,7 +265,7 @@ class TestCircuitBreakerFunctions:
 
         assert result is True
         assert self.plugin._quality_update_count == 1
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore
             "risk_management.circuit_breaker_tripped",
             {"tripped": True, "status": "TRIPPED"},
         )
@@ -275,16 +273,12 @@ class TestCircuitBreakerFunctions:
     def test_update_data_quality_not_loaded(self) -> None:
         """测试未加载时更新数据质量"""
         self.plugin._circuit_breaker = None
-        with pytest.raises(
-            RuntimeError, match="未加载.*数据质量"
-        ):
+        with pytest.raises(RuntimeError, match="未加载.*数据质量"):
             self.plugin.update_data_quality(MagicMock())
 
     def test_update_data_quality_error(self) -> None:
         """测试数据质量更新异常"""
-        self.mock_cb.update_data_quality.side_effect = (
-            ValueError("bad metrics")
-        )
+        self.mock_cb.update_data_quality.side_effect = ValueError("bad metrics")
         metrics = MagicMock()
 
         with pytest.raises(ValueError, match="bad metrics"):
@@ -305,9 +299,7 @@ class TestCircuitBreakerFunctions:
     def test_is_trading_allowed_not_loaded(self) -> None:
         """测试未加载时检查交易权限"""
         self.plugin._circuit_breaker = None
-        with pytest.raises(
-            RuntimeError, match="未加载.*交易权限"
-        ):
+        with pytest.raises(RuntimeError, match="未加载.*交易权限"):
             self.plugin.is_trading_allowed()
 
     def test_get_status_report(self) -> None:
@@ -320,9 +312,7 @@ class TestCircuitBreakerFunctions:
     def test_get_status_report_not_loaded(self) -> None:
         """测试未加载时获取状态报告"""
         self.plugin._circuit_breaker = None
-        with pytest.raises(
-            RuntimeError, match="未加载.*状态报告"
-        ):
+        with pytest.raises(RuntimeError, match="未加载.*状态报告"):
             self.plugin.get_status_report()
 
 
@@ -344,16 +334,14 @@ class TestAnomalyValidatorFunctions:
         anomaly.anomaly_id = "test_001"
         result_event = MagicMock()
         result_event.validation_result = "CONFIRMED"
-        self.mock_av.validate_anomaly.return_value = (
-            result_event
-        )
+        self.mock_av.validate_anomaly.return_value = result_event
 
         result = self.plugin.validate_anomaly(anomaly)
 
         assert result == result_event
         assert self.plugin._anomaly_validate_count == 1
         assert self.plugin._last_error is None
-        self.plugin.emit_event.assert_called_once_with(
+        self.plugin.emit_event.assert_called_once_with(  # type: ignore
             "risk_management.anomaly_validated",
             {
                 "anomaly_id": "test_001",
@@ -371,13 +359,9 @@ class TestAnomalyValidatorFunctions:
         correlation = {"btc_eth": 0.95}
         result_event = MagicMock()
         result_event.validation_result = "REJECTED"
-        self.mock_av.validate_anomaly.return_value = (
-            result_event
-        )
+        self.mock_av.validate_anomaly.return_value = result_event
 
-        result = self.plugin.validate_anomaly(
-            anomaly, exchange_data, correlation
-        )
+        result = self.plugin.validate_anomaly(anomaly, exchange_data, correlation)  # type: ignore
 
         self.mock_av.validate_anomaly.assert_called_once_with(
             anomaly, exchange_data, correlation
@@ -387,39 +371,29 @@ class TestAnomalyValidatorFunctions:
     def test_validate_anomaly_not_loaded(self) -> None:
         """测试未加载时验证异常"""
         self.plugin._anomaly_validator = None
-        with pytest.raises(
-            RuntimeError, match="未加载.*验证异常"
-        ):
+        with pytest.raises(RuntimeError, match="未加载.*验证异常"):
             self.plugin.validate_anomaly(MagicMock())
 
     def test_validate_anomaly_error(self) -> None:
         """测试异常验证失败"""
-        self.mock_av.validate_anomaly.side_effect = (
-            ValueError("invalid anomaly")
-        )
+        self.mock_av.validate_anomaly.side_effect = ValueError("invalid anomaly")
         anomaly = MagicMock()
 
-        with pytest.raises(
-            ValueError, match="invalid anomaly"
-        ):
+        with pytest.raises(ValueError, match="invalid anomaly"):
             self.plugin.validate_anomaly(anomaly)
 
-        assert (
-            self.plugin._last_error == "invalid anomaly"
-        )
+        assert self.plugin._last_error == "invalid anomaly"
 
     def test_validate_anomaly_without_id(self) -> None:
         """测试验证没有anomaly_id的异常"""
         anomaly = MagicMock(spec=[])
         result_event = MagicMock()
         result_event.validation_result = "UNKNOWN"
-        self.mock_av.validate_anomaly.return_value = (
-            result_event
-        )
+        self.mock_av.validate_anomaly.return_value = result_event
 
         self.plugin.validate_anomaly(anomaly)
 
-        call_args = self.plugin.emit_event.call_args
+        call_args = self.plugin.emit_event.call_args  # type: ignore
         assert call_args[0][1]["anomaly_id"] == "unknown"
 
 
@@ -466,9 +440,7 @@ class TestRiskManagementStatistics:
         mock_av = MagicMock()
         result_event = MagicMock()
         result_event.validation_result = "CONFIRMED"
-        mock_av.validate_anomaly.return_value = (
-            result_event
-        )
+        mock_av.validate_anomaly.return_value = result_event
         self.plugin._anomaly_validator = mock_av
         self.plugin.emit_event = MagicMock(return_value=1)
 
@@ -488,8 +460,8 @@ class TestRiskManagementPluginImport:
     """测试插件导入"""
 
     def test_import_from_package(self) -> None:
-        """测试从包导入"""
-        from src.plugins.risk_management import (
+        """测试从包导入（直接从子模块导入）"""
+        from src.plugins.risk_management.plugin import (
             RiskManagementPlugin,
         )
 

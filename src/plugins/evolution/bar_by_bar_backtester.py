@@ -18,6 +18,7 @@ import pandas as pd
 from src.kernel.types import (
     BacktestResult,
     BacktestTrade,
+    BarDetail,
     BarSignal,
     TradingSignal,
 )
@@ -139,6 +140,9 @@ class BarByBarBacktester:
         self._peak_equity = initial_capital
         self._max_drawdown = 0.0
         self._equity_curve: List[float] = []
+        self._bar_phases: List[str] = []  # 逐bar威科夫阶段 (A/B/C/D/E/IDLE)
+        self._bar_states: List[str] = []  # 逐bar威科夫状态 (SC/SPRING/JOC/...)
+        self._bar_details: List[BarDetail] = []  # 逐bar完整状态机快照
 
         # 退出参数
         self._atr_sl_mult = 2.0  # 止损 = 2x ATR
@@ -186,6 +190,27 @@ class BarByBarBacktester:
             # 调用引擎
             bar_signal = engine.process_bar(symbol, bar_data)
 
+            # 记录逐bar威科夫阶段和状态
+            self._bar_phases.append(bar_signal.phase)
+            self._bar_states.append(bar_signal.wyckoff_state)
+            self._bar_details.append(
+                BarDetail(
+                    phase=bar_signal.phase,
+                    state=bar_signal.wyckoff_state,
+                    confidence=bar_signal.confidence,
+                    tr_support=bar_signal.tr_support,
+                    tr_resistance=bar_signal.tr_resistance,
+                    tr_confidence=bar_signal.tr_confidence,
+                    market_regime=bar_signal.market_regime,
+                    direction=bar_signal.direction,
+                    signal_strength=bar_signal.signal_strength,
+                    state_changed=bar_signal.state_changed,
+                    previous_state=bar_signal.previous_state,
+                    heritage_score=bar_signal.heritage_score,
+                    critical_levels=dict(bar_signal.critical_levels),
+                )
+            )
+
             # 当前bar的 OHLC
             candle = h4.iloc[i]
             close = float(candle["close"])
@@ -218,13 +243,16 @@ class BarByBarBacktester:
 
         return self._build_result()
 
+    # 各TF最大保留bar数（引擎不需要全部历史，只需近期数据做技术分析）
+    _TF_MAX_BARS = {"D1": 200, "H4": 500, "H1": 500, "M15": 500, "M5": 500}
+
     def _slice_to_bar(
         self,
         data_dict: Dict[str, pd.DataFrame],
         h4: pd.DataFrame,
         bar_idx: int,
     ) -> Dict[str, pd.DataFrame]:
-        """截取到第 bar_idx 根K线为止的多TF数据"""
+        """截取到第 bar_idx 根K线为止的多TF数据（限制窗口大小）"""
         if bar_idx < 10:
             return {}
 
@@ -234,9 +262,14 @@ class BarByBarBacktester:
         for tf_name, tf_df in data_dict.items():
             if not isinstance(tf_df, pd.DataFrame):
                 continue
-            sliced = tf_df.loc[tf_df.index <= h4_time]
-            if len(sliced) >= 10:
-                result[tf_name] = sliced
+            # 用 searchsorted 快速定位，比 .loc 更高效
+            pos = tf_df.index.searchsorted(h4_time, side="right")
+            if pos < 10:
+                continue
+            # 限制窗口大小，避免传入过多数据
+            max_bars = self._TF_MAX_BARS.get(tf_name, 500)
+            start = max(0, pos - max_bars)
+            result[tf_name] = tf_df.iloc[start:pos]
 
         return result if "H4" in result else {}
 
@@ -464,6 +497,10 @@ class BarByBarBacktester:
                 total_trades=0,
                 avg_hold_bars=0.0,
                 config_hash=self._hash_config(),
+                equity_curve=list(self._equity_curve),
+                bar_phases=list(self._bar_phases),
+                bar_states=list(self._bar_states),
+                bar_details=list(self._bar_details),
             )
 
         # 基础统计
@@ -482,8 +519,8 @@ class BarByBarBacktester:
 
         avg_hold = float(np.mean([t.hold_bars for t in trades]))
 
-        # Sharpe Ratio（基于收益率序列）
-        sharpe = self._compute_sharpe(trades)
+        # Sharpe Ratio（基于逐bar权益曲线收益率）
+        sharpe = self._compute_sharpe_from_equity()
 
         return BacktestResult(
             trades=trades,
@@ -495,31 +532,44 @@ class BarByBarBacktester:
             total_trades=n_trades,
             avg_hold_bars=avg_hold,
             config_hash=self._hash_config(),
+            equity_curve=list(self._equity_curve),
+            bar_phases=list(self._bar_phases),
+            bar_states=list(self._bar_states),
+            bar_details=list(self._bar_details),
         )
 
-    @staticmethod
-    def _compute_sharpe(
-        trades: List[BacktestTrade], annual_factor: float = 6.0
-    ) -> float:
-        """计算 Sharpe Ratio
+    def _compute_sharpe_from_equity(self) -> float:
+        """基于逐bar权益曲线计算 Sharpe Ratio
 
-        Args:
-            trades: 交易列表
-            annual_factor: 年化因子（H4交易，约 6 trades/年周期≈sqrt(6)）
+        使用 per-bar equity returns 而非 per-trade returns，
+        更准确反映策略的真实风险调整收益。
+
+        年化因子：H4 bars/year = 6 bars/day * 365 days = 2190
+        Sharpe_annual = mean(bar_returns) / std(bar_returns) * sqrt(2190)
 
         Returns:
             年化 Sharpe Ratio
         """
-        if len(trades) < 2:
+        if len(self._equity_curve) < 10:
             return 0.0
 
-        returns = np.array([t.pnl_pct for t in trades])
-        mean_r = np.mean(returns)
-        std_r = np.std(returns, ddof=1)
+        equity = np.array(self._equity_curve)
+        # 计算 bar-to-bar 收益率
+        bar_returns = np.diff(equity) / equity[:-1]
+
+        # 过滤掉 inf/nan
+        bar_returns = bar_returns[np.isfinite(bar_returns)]
+        if len(bar_returns) < 5:
+            return 0.0
+
+        mean_r = np.mean(bar_returns)
+        std_r = np.std(bar_returns, ddof=1)
 
         if std_r < 1e-10:
             return 0.0
 
+        # H4 年化: 6 bars/day * 365 = 2190 bars/year
+        annual_factor = 2190.0
         return float(mean_r / std_r * np.sqrt(annual_factor))
 
     def _hash_config(self) -> str:
@@ -540,4 +590,8 @@ class BarByBarBacktester:
             total_trades=0,
             avg_hold_bars=0.0,
             config_hash=self._hash_config(),
+            equity_curve=[],
+            bar_phases=[],
+            bar_states=[],
+            bar_details=[],
         )

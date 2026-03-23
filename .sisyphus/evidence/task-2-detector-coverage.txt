@@ -1,0 +1,53 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.3.5, pluggy-1.6.0 -- C:\Users\Administrator\AppData\Local\Programs\Python\Python311\python.exe
+cachedir: .pytest_cache
+PyQt6 6.8.1 -- Qt runtime 6.8.2 -- Qt compiled 6.8.2
+rootdir: F:\VCPToolBox\wyckoff
+configfile: pyproject.toml
+plugins: anyio-4.10.0, dash-4.0.0, langsmith-0.3.45, asyncio-0.25.3, cov-6.0.0, qt-4.4.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collecting ... collected 41 items
+
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_ps_detects_stopping_action PASSED [  2%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_sc_detects_high_volume_drop PASSED [  4%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_ar_detects_bounce PASSED [  7%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_spring_detects_break_below PASSED [  9%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_joc_detects_breakout PASSED [ 12%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_st_detects_support_test PASSED [ 14%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_lps_detects_higher_low PASSED [ 17%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_TEST_positive PASSED [ 19%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_TEST_negative PASSED [ 21%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_UTA_positive PASSED [ 24%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_UTA_negative PASSED [ 26%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_SO_positive PASSED [ 29%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_SO_negative PASSED [ 31%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_mSOS_positive PASSED [ 34%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_mSOS_negative PASSED [ 36%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_MSOS_positive PASSED [ 39%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_MSOS_negative PASSED [ 41%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_BU_positive PASSED [ 43%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_BU_negative PASSED [ 46%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_all_new_positives_have_evidences PASSED [ 48%]
+tests/plugins/test_detectors_v4.py::TestAccumulationDetectors::test_low_confidence_returns_none PASSED [ 51%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_psy_detects_supply PASSED [ 53%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_bc_detects_climax PASSED [ 56%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_utad_detects_overthrow PASSED [ 58%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_msow_detects_breakdown PASSED [ 60%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_lpsy_detects_weak_rally PASSED [ 63%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_AR_DIST_positive PASSED [ 65%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_AR_DIST_negative PASSED [ 68%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_ST_DIST_positive PASSED [ 70%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_ST_DIST_negative PASSED [ 73%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_UT_positive PASSED [ 75%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_UT_negative PASSED [ 78%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_mSOW_positive PASSED [ 80%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_mSOW_negative PASSED [ 82%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_all_new_positives_have_evidences PASSED [ 85%]
+tests/plugins/test_detectors_v4.py::TestDistributionDetectors::test_low_confidence_returns_none PASSED [ 87%]
+tests/plugins/test_detectors_v4.py::TestRegistryIntegration::test_v4_registers_all_22 PASSED [ 90%]
+tests/plugins/test_detectors_v4.py::TestRegistryIntegration::test_evaluate_expected_filters PASSED [ 92%]
+tests/plugins/test_detectors_v4.py::TestRegistryIntegration::test_all_detectors_have_name PASSED [ 95%]
+tests/plugins/test_detectors_v4.py::TestRegistryIntegration::test_all_detectors_accept_interface PASSED [ 97%]
+tests/plugins/test_detectors_v4.py::TestRegistryIntegration::test_cooldown_blocks_detection PASSED [100%]
+
+============================= 41 passed in 0.21s ==============================

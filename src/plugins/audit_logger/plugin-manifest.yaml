@@ -1,0 +1,27 @@
+name: audit_logger
+version: "3.0.0"
+description: "审计日志插件 — 记录所有交易决策和仓位事件到 JSONL 文件"
+author: "Wyckoff Engine Team"
+entry_point: plugin
+
+plugin_type: optional
+
+dependencies: []
+
+events:
+  publishes: []
+  subscribes:
+    - trading.signal
+    - position.opened
+    - position.closed
+    - risk_management.circuit_breaker_tripped
+
+config_schema:
+  log_dir:
+    type: string
+    default: "./logs"
+    description: "审计日志目录路径"
+  log_file:
+    type: string
+    default: "audit.jsonl"
+    description: "审计日志文件名"

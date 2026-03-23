@@ -13,6 +13,7 @@ export function useOverlays(
   series: ISeriesApi<"Candlestick"> | null,
 ) {
   const wyckoff = useStore((s) => s.wyckoffState);
+  const disposedRef = useRef(false);
 
   const phaseBgRef = useRef<WyckoffPhaseBg | null>(null);
   const srRef = useRef<SupportResistance | null>(null);
@@ -23,21 +24,28 @@ export function useOverlays(
   useEffect(() => {
     if (!chart || !series) return;
 
+    disposedRef.current = false;
+
     const phaseBg = new WyckoffPhaseBg();
     const sr = new SupportResistance();
     const fvg = new FvgZones();
     const markers = new StateMarkers();
 
-    // Phase background is a pane primitive (draws behind everything)
-    const pane = chart.panes()[0];
-    if (pane) {
-      pane.attachPrimitive(phaseBg);
-    }
+    let pane: ReturnType<IChartApi["panes"]>[number] | null = null;
 
-    // Others are series primitives
-    series.attachPrimitive(sr);
-    series.attachPrimitive(fvg);
-    series.attachPrimitive(markers);
+    try {
+      // Phase background is a pane primitive (draws behind everything)
+      pane = chart.panes()[0] ?? null;
+      if (pane) pane.attachPrimitive(phaseBg);
+
+      // Others are series primitives
+      series.attachPrimitive(sr);
+      series.attachPrimitive(fvg);
+      series.attachPrimitive(markers);
+    } catch {
+      // chart/series already disposed (StrictMode double-mount race)
+      return;
+    }
 
     phaseBgRef.current = phaseBg;
     srRef.current = sr;
@@ -45,12 +53,12 @@ export function useOverlays(
     markersRef.current = markers;
 
     return () => {
-      if (pane) {
-        pane.detachPrimitive(phaseBg);
-      }
-      series.detachPrimitive(sr);
-      series.detachPrimitive(fvg);
-      series.detachPrimitive(markers);
+      disposedRef.current = true;
+      // Chart may already be disposed (useChart cleanup runs first)
+      try { if (pane) pane.detachPrimitive(phaseBg); } catch { /* disposed */ }
+      try { series.detachPrimitive(sr); } catch { /* disposed */ }
+      try { series.detachPrimitive(fvg); } catch { /* disposed */ }
+      try { series.detachPrimitive(markers); } catch { /* disposed */ }
 
       phaseBgRef.current = null;
       srRef.current = null;
@@ -61,10 +69,17 @@ export function useOverlays(
 
   // Update overlays when wyckoff state changes
   useEffect(() => {
-    if (!wyckoff) return;
+    if (!wyckoff || disposedRef.current) return;
 
-    phaseBgRef.current?.setPhase(wyckoff.phase);
-    srRef.current?.setLevels(wyckoff.critical_levels);
-    markersRef.current?.setState(wyckoff.current_state, wyckoff.phase);
+    try {
+      phaseBgRef.current?.setPhase(wyckoff.phase ?? "IDLE");
+      srRef.current?.setLevels(wyckoff.critical_levels ?? {});
+      markersRef.current?.setState(
+        wyckoff.current_state ?? "",
+        wyckoff.phase ?? "IDLE",
+      );
+    } catch {
+      // chart disposed
+    }
   }, [wyckoff]);
 }

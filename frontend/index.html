@@ -7,7 +7,42 @@
     <title>Wyckoff Trading Engine</title>
   </head>
   <body class="bg-panel-bg text-text-primary antialiased">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Loading indicator (replaced by React on mount) -->
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#131722;color:#787B86;font-family:sans-serif;flex-direction:column;gap:12px">
+        <div style="font-size:18px;font-weight:600;color:#D1D4DC">Wyckoff Engine v3.0</div>
+        <div style="font-size:13px">Loading...</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Global error handler — only shows crash info for fatal errors
+      // that prevent React from rendering. Ignores non-fatal errors.
+      window.__REACT_MOUNTED__ = false;
+      window.addEventListener('error', function(e) {
+        // Ignore LWC "Object is disposed" — harmless cleanup race condition
+        if (e.message && e.message.indexOf('disposed') !== -1) {
+          e.preventDefault();
+          return;
+        }
+        // Ignore ResizeObserver loop errors — harmless browser quirk with LWC
+        if (e.message && e.message.indexOf('ResizeObserver') !== -1) {
+          e.preventDefault();
+          return;
+        }
+        // If React has already mounted, let ErrorBoundary handle it
+        if (window.__REACT_MOUNTED__) return;
+        var root = document.getElementById('root');
+        if (!root) return;
+        root.innerHTML = '<div style="padding:40px;color:#EF5350;background:#131722;font-family:monospace;height:100vh">'
+          + '<h2 style="color:#D1D4DC;margin-bottom:16px">Frontend Error</h2>'
+          + '<pre style="white-space:pre-wrap;font-size:13px">' + (e.message || 'Unknown error') + '\n\n' + (e.filename || '') + ':' + (e.lineno || '') + '</pre>'
+          + '<div style="margin-top:20px;color:#787B86;font-size:13px">Press Ctrl+Shift+R to reload</div>'
+          + '</div>';
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('Unhandled promise rejection:', e.reason);
+      });
+    </script>
   </body>
 </html>

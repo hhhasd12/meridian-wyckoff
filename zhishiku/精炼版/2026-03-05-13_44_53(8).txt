@@ -1,0 +1,38 @@
+[2026-03-05] - 小娜
+[18:15]威科夫操盘法（孟洪涛）——核心术语速查表
+
+【来源】新威科夫操盘法 孟洪涛著 文件59 附录术语表
+
+【核心概念】
+威科夫分析的核心术语速查，用于写作时快速查阅标准定义。
+
+【底部/吸筹阶段术语】
+PS（Preliminary Support）初次支撑：熊市末期第一次明显买入行为
+SC（Selling Climax）恐慌抛售：超大成交量+大幅下跌，供应集中释放
+AR（Automatic Rally）自动反弹：SC后的强劲反弹，确定震荡区间上边界
+ST（Secondary Test）二次测试：回落测试SC区域，成交量应低于SC
+Spring 弹簧：跌破震荡区间下边界后迅速反弹，测试供应
+LPS（Last Point of Support）最后支撑点：Spring后回调低点，成交量更低
+SOS（Sign of Strength）强势信号：长阳线+大成交量，需求控制市场
+JOC（Jump Over the Creek）跳离震荡区：放量突破震荡区间上边界
+BUEC（Back Up to the Edge of the Creek）回测：JOC后回调到原阻力位
+
+【顶部/派发阶段术语】
+PSY（Preliminary Supply）预备供应：牛市末期第一次明显卖出行为
+BC（Buying Climax）抢购高潮：超大成交量+大幅上涨，需求集中释放
+AR（Automatic Reaction）自动回落：BC后的第一次回调
+ST（Secondary Test）二次测试（顶部版）：反弹测试BC区域，成交量应低于BC
+UTAD（Upthrust After Distribution）上冲回落：突破后迅速回落，假突破
+SOW（Sign of Weakness）弱势信号：长阴线+大成交量，供应控制市场
+LPSY（Last Point of Supply）最后供给点：SOW后反弹高点，成交量更低
+
+【通用术语】
+CM（Composite Man）主力机构/聪明钱
+TR（Trading Range）震荡区间
+VDB（Vertical Demand Bar）垂直需求柱
+VSB（Vertical Supply Bar）垂直供应柱
+冰线：上涨趋势中最后一道防线，跌破后变阻力
+
+【实战含义】
+这个术语表用于写作时快速查阅标准定义，确保使用准确。
+Tag: 威科夫术语速查 PS SC AR ST Spring LPS SOS JOC BUEC PSY BC UTAD SOW LPSY CM TR VDB VSB 冰线定义 底部术语 顶部术语

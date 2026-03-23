@@ -154,7 +154,12 @@ class RegimeDetector:
         tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
 
         # ATR（简单移动平均）
-        return tr.rolling(window=self.atr_period).mean()
+        atr_result = tr.rolling(window=self.atr_period).mean()
+        return (
+            pd.Series(atr_result)
+            if not isinstance(atr_result, pd.Series)
+            else atr_result
+        )
 
     def _calculate_adx(self, df: pd.DataFrame) -> pd.Series:
         """计算ADX（简化版，实际项目应使用TA-Lib）"""
@@ -179,7 +184,7 @@ class RegimeDetector:
         dx = 100 * abs(plus_di - minus_di) / di_sum
 
         # ADX
-        return dx.rolling(window=self.adx_period).mean()
+        return pd.Series(dx).rolling(window=self.adx_period).mean()  # type: ignore[return-value]
 
     def _calculate_volatility(self, df: pd.DataFrame) -> pd.Series:
         """计算历史波动率（收盘价对数收益率的标准差）"""

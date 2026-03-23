@@ -208,34 +208,30 @@ def check_src_modules(report: HealthReport):
 
     # (模块路径, 必须能导入, 必须存在的类/函数)
     MODULE_CHECKS = [
-        # ── core (migrated to plugins) ──
-        (
-            "src.plugins.self_correction.mistake_book",
-            True,
-            ["MistakeBook", "MistakeType", "ErrorSeverity", "ErrorPattern"],
-        ),
-        (
-            "src.plugins.evolution.weight_variator_legacy",
-            True,
-            ["WeightVariator", "MutationType"],
-        ),
-        (
-            "src.plugins.evolution.wfa_backtester",
-            True,
-            ["WFABacktester", "PerformanceMetric"],
-        ),
+        # ── 内核层 ──
+        ("src.kernel.types", True, []),
+        ("src.kernel.base_plugin", True, ["BasePlugin"]),
+        ("src.kernel.event_bus", True, ["EventBus"]),
+        ("src.kernel.plugin_manager", True, ["PluginManager"]),
+        ("src.kernel.config_system", True, []),
+        # ── 进化系统（核心路径） ──
+        ("src.plugins.evolution.genetic_algorithm", True, ["GeneticAlgorithm"]),
+        ("src.plugins.evolution.evaluator", True, ["StandardEvaluator"]),
+        ("src.plugins.evolution.bar_by_bar_backtester", True, ["BarByBarBacktester"]),
+        ("src.plugins.evolution.wfa_validator", True, ["WFAValidator"]),
+        ("src.plugins.evolution.anti_overfit", True, ["AntiOverfitGuard"]),
+        # ── 自我纠错 ──
+        ("src.plugins.self_correction.mistake_book", True, ["MistakeBook"]),
         ("src.plugins.self_correction.workflow", True, ["SelfCorrectionWorkflow"]),
-        (
-            "src.plugins.orchestrator.system_orchestrator_legacy",
-            True,
-            ["SystemOrchestrator"],
-        ),
+        # ── 引擎 ──
+        ("src.plugins.wyckoff_engine.engine", True, ["WyckoffEngine"]),
         ("src.plugins.market_regime.detector", True, ["RegimeDetector"]),
         (
             "src.plugins.weight_system.period_weight_filter",
             True,
             ["PeriodWeightFilter"],
         ),
+        # ── 信号验证 ──
         (
             "src.plugins.signal_validation.conflict_resolver",
             True,
@@ -243,33 +239,23 @@ def check_src_modules(report: HealthReport):
         ),
         ("src.plugins.signal_validation.breakout_validator", True, []),
         ("src.plugins.signal_validation.micro_entry_validator", True, []),
-        ("src.plugins.dashboard.performance_monitor", True, []),
-        ("src.plugins.evolution.archivist", True, ["EvolutionArchivist"]),
-        ("src.plugins.risk_management.circuit_breaker", True, []),
-        ("src.plugins.data_pipeline.data_sanitizer", True, []),
+        # ── 感知层 ──
+        ("src.plugins.perception.candle_physical", True, []),
+        ("src.plugins.perception.fvg_detector", True, []),
+        ("src.plugins.perception.pin_body_analyzer", True, []),
+        # ── 数据管道 ──
         ("src.plugins.data_pipeline.data_pipeline", True, []),
-        ("src.plugins.orchestrator.config_types", True, []),
-        ("src.plugins.pattern_detection.curve_boundary", False, []),
-        # wyckoff state machine
-        ("src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy", True, []),
-        ("src.plugins.wyckoff_state_machine.evidence_chain", True, []),
-        # evolution
-        ("src.plugins.evolution.operators", False, []),
-        # orchestrator
-        ("src.plugins.orchestrator.config", True, []),
-        ("src.plugins.orchestrator.health", True, []),
-        ("src.plugins.orchestrator.registry", True, []),
-        ("src.plugins.orchestrator.flow", True, []),
-        # ── perception ──
-        ("src.perception.candle_physical", False, []),
-        ("src.perception.fvg_detector", False, []),
-        ("src.perception.pin_body_analyzer", False, []),
-        # ── utils ──
+        ("src.plugins.data_pipeline.ohlcv_validator", True, []),
+        # ── 风险管理 ──
+        ("src.plugins.risk_management.circuit_breaker", True, []),
+        ("src.plugins.risk_management.capital_guard", True, []),
+        # ── 其他插件 ──
+        ("src.plugins.pattern_detection.curve_boundary", True, []),
+        ("src.plugins.dashboard.performance_monitor", True, []),
+        ("src.plugins.exchange_connector.rate_limiter", True, []),
+        # ── 工具层 ──
         ("src.utils.error_handler", True, ["error_handler"]),
         ("src.utils.config_loader", True, []),
-        ("src.utils.visualizer", False, []),
-        # ── visualization ──
-        ("src.visualization.heritage_panel", False, []),
     ]
 
     for mod_path, required, symbols in MODULE_CHECKS:
@@ -419,11 +405,13 @@ def check_e2e_import_chain(report: HealthReport):
     模拟 run_evolution.py 的完整 import 链，捕获任何运行时错误
     """
     chain = [
-        ("src.plugins.self_correction.workflow", "SelfCorrectionWorkflow"),
+        ("src.plugins.evolution.genetic_algorithm", "GeneticAlgorithm"),
+        ("src.plugins.evolution.evaluator", "StandardEvaluator"),
+        ("src.plugins.evolution.bar_by_bar_backtester", "BarByBarBacktester"),
+        ("src.plugins.wyckoff_engine.engine", "WyckoffEngine"),
+        ("src.plugins.evolution.wfa_validator", "WFAValidator"),
+        ("src.plugins.evolution.anti_overfit", "AntiOverfitGuard"),
         ("src.plugins.self_correction.mistake_book", "MistakeBook"),
-        ("src.plugins.evolution.weight_variator_legacy", "WeightVariator"),
-        ("src.plugins.evolution.wfa_backtester", "WFABacktester"),
-        ("src.plugins.agent_teams.backtest.engine", "BacktestEngine"),
     ]
 
     all_ok = True
@@ -446,6 +434,7 @@ def check_e2e_import_chain(report: HealthReport):
             )
         )
     else:
+        assert broken_at is not None  # guaranteed by loop logic above
         mod_path, cls_name, err = broken_at
         report.add(
             CheckResult(

@@ -233,7 +233,7 @@ class AntiOverfitGuard:
         returns = np.array([t.pnl_pct for t in result.trades])
         original_sharpe = self._sharpe_from_returns(returns)
 
-        rng = np.random.RandomState(42)
+        rng = np.random.default_rng()
         n_better = 0
         n_perms = self.config.mc_n_permutations
 

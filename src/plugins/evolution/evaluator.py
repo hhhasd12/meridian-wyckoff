@@ -43,6 +43,7 @@ class StandardEvaluator:
         self.slippage_rate = slippage_rate
         self.warmup_bars = warmup_bars
         self.mistake_book = mistake_book
+        self.last_backtest_result: Optional[BacktestResult] = None
 
     def __call__(
         self,
@@ -90,6 +91,9 @@ class StandardEvaluator:
         )
         result = backtester.run("EVOLUTION", data, test_start_idx=test_start_idx)
 
+        # 缓存最近一次回测结果，供 GA 存入 individual（根因7修复）
+        self.last_backtest_result = result
+
         # 5. 记录亏损到 MistakeBook
         if self.mistake_book is not None:
             self._record_losses(result)
@@ -117,6 +121,8 @@ class StandardEvaluator:
                     if abs(trade.pnl_pct) < 0.01
                     else ErrorPattern.FREQUENT_FALSE_POSITIVE
                 )
+                if self.mistake_book is None:
+                    continue
                 self.mistake_book.record_mistake(
                     mistake_type=MistakeType.ENTRY_VALIDATION_ERROR,
                     severity=severity,
@@ -140,9 +146,13 @@ class StandardEvaluator:
                     patterns=[pattern],
                 )
 
-    @staticmethod
-    def _compute_metrics(result: BacktestResult) -> Dict[str, float]:
+    @classmethod
+    def _compute_metrics(cls, result: BacktestResult) -> Dict[str, float]:
         """从 BacktestResult 计算标准化指标"""
+        # 根因3修复：交易数不足时返回空指标，防止0-trade配置获得高分
+        if result.total_trades < 5:
+            return {**cls._empty_metrics(), "TOTAL_TRADES": result.total_trades}
+
         sharpe = result.sharpe_ratio if not np.isnan(result.sharpe_ratio) else 0.0
         drawdown = result.max_drawdown
         win_rate = result.win_rate

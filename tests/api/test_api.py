@@ -308,3 +308,63 @@ class TestWebSocket:
             ws.send_json({"type": "ping"})
             data = ws.receive_json()
             assert data["type"] == "pong"
+
+
+class TestBearerTokenAuth:
+    """Bearer Token 认证中间件测试"""
+
+    def test_post_without_token_when_token_set(self):
+        """设置了 WYCKOFF_API_TOKEN 时，POST 无 Authorization 返回 401"""
+        mock_app = _make_mock_app()
+        app_state.wyckoff_app = mock_app
+        with patch("src.api.app._api_token", "test-secret-token"):
+            resp = client.post(
+                "/api/config",
+                json={"config": {"key": "val"}},
+            )
+            assert resp.status_code == 401
+            assert "Bearer token" in resp.json()["detail"]
+
+    def test_post_with_wrong_token(self):
+        """设置了 WYCKOFF_API_TOKEN 时，Bearer token 错误返回 401"""
+        mock_app = _make_mock_app()
+        app_state.wyckoff_app = mock_app
+        with patch("src.api.app._api_token", "test-secret-token"):
+            resp = client.post(
+                "/api/config",
+                json={"config": {"key": "val"}},
+                headers={"Authorization": "Bearer wrong-token"},
+            )
+            assert resp.status_code == 401
+
+    def test_post_with_correct_token(self):
+        """设置了 WYCKOFF_API_TOKEN 时，正确 Bearer token 放行"""
+        mock_app = _make_mock_app()
+        app_state.wyckoff_app = mock_app
+        with patch("src.api.app._api_token", "test-secret-token"):
+            resp = client.post(
+                "/api/config",
+                json={"config": {"key": "val"}},
+                headers={"Authorization": "Bearer test-secret-token"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "updated"
+
+    def test_get_allowed_without_token(self):
+        """GET 请求不需要认证（即使设置了 token）"""
+        app_state.wyckoff_app = None
+        with patch("src.api.app._api_token", "test-secret-token"):
+            resp = client.get("/api/system/snapshot")
+            assert resp.status_code == 200
+
+    def test_post_allowed_when_no_token_configured(self):
+        """未设置 WYCKOFF_API_TOKEN 时，POST 请求直接放行"""
+        mock_app = _make_mock_app()
+        app_state.wyckoff_app = mock_app
+        with patch("src.api.app._api_token", ""):
+            resp = client.post(
+                "/api/config",
+                json={"config": {"key": "val"}},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "updated"

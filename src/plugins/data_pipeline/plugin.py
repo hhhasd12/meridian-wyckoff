@@ -31,6 +31,7 @@ class DataPipelinePlugin(BasePlugin):
     Attributes:
         pipeline: DataPipeline 实例（惰性导入避免循环依赖）
         _fetch_count: 数据获取计数
+        _data_cache: 内存缓存 {(symbol, tf): DataFrame}
     """
 
     def __init__(
@@ -42,6 +43,7 @@ class DataPipelinePlugin(BasePlugin):
         self.pipeline: Any = None
         self._fetch_count: int = 0
         self._last_error: Optional[str] = None
+        self._data_cache: Dict[str, pd.DataFrame] = {}
 
     def on_load(self) -> None:
         """加载插件：初始化 DataPipeline 并订阅事件"""
@@ -69,20 +71,17 @@ class DataPipelinePlugin(BasePlugin):
         self.pipeline = None
         self._fetch_count = 0
         self._last_error = None
+        self._data_cache.clear()
         self._logger.info("DataPipelinePlugin 已卸载")
 
-    def on_config_update(
-        self, new_config: Dict[str, Any]
-    ) -> None:
+    def on_config_update(self, new_config: Dict[str, Any]) -> None:
         """配置热更新：重新创建 DataPipeline"""
         self._config = new_config
         if self.pipeline is not None:
             from src.plugins.data_pipeline.data_pipeline import DataPipeline
 
             self.pipeline = DataPipeline(config=new_config)
-            self._logger.info(
-                "DataPipelinePlugin 配置已热更新"
-            )
+            self._logger.info("DataPipelinePlugin 配置已热更新")
 
     def health_check(self) -> HealthCheckResult:
         """健康检查：验证 pipeline 是否正常"""
@@ -128,9 +127,7 @@ class DataPipelinePlugin(BasePlugin):
             OHLCV DataFrame，失败时返回 None
         """
         if self.pipeline is None:
-            raise RuntimeError(
-                "DataPipelinePlugin 未加载，无法获取数据"
-            )
+            raise RuntimeError("DataPipelinePlugin 未加载，无法获取数据")
 
         try:
             from src.plugins.data_pipeline.data_pipeline import (
@@ -199,9 +196,7 @@ class DataPipelinePlugin(BasePlugin):
             RuntimeError: 当插件未加载时
         """
         if self.pipeline is None:
-            raise RuntimeError(
-                "DataPipelinePlugin 未加载，无法获取数据"
-            )
+            raise RuntimeError("DataPipelinePlugin 未加载，无法获取数据")
 
         try:
             from src.plugins.data_pipeline.data_pipeline import (
@@ -212,20 +207,14 @@ class DataPipelinePlugin(BasePlugin):
 
             # 构建请求
             tf_map = {v.value: v for v in Timeframe}
-            tf_enum = tf_map.get(
-                timeframe, Timeframe.H1
-            )
+            tf_enum = tf_map.get(timeframe, Timeframe.H1)
 
             request = DataRequest(
                 symbol=symbol,
                 timeframe=tf_enum,
                 limit=limit,
-                source=kwargs.get(
-                    "source", DataSource.CCXT
-                ),
-                exchange=kwargs.get(
-                    "exchange", "binance"
-                ),
+                source=kwargs.get("source", DataSource.CCXT),
+                exchange=kwargs.get("exchange", "binance"),
             )
 
             # 使用 asyncio 运行异步方法
@@ -239,6 +228,7 @@ class DataPipelinePlugin(BasePlugin):
             if loop and loop.is_running():
                 # 已有事件循环运行中，使用 nest_asyncio 或创建 Future
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     df = pool.submit(
                         asyncio.run,
@@ -246,17 +236,13 @@ class DataPipelinePlugin(BasePlugin):
                     ).result()
             else:
                 # 无事件循环，安全创建新的
-                df = asyncio.run(
-                    self.pipeline.fetch_data(request)
-                )
+                df = asyncio.run(self.pipeline.fetch_data(request))
 
             self._fetch_count += 1
             self._last_error = None
 
             # 发布数据就绪事件
-            self._publish_ohlcv_ready(
-                df, symbol, timeframe
-            )
+            self._publish_ohlcv_ready(df, symbol, timeframe)
 
             return df
 
@@ -278,9 +264,7 @@ class DataPipelinePlugin(BasePlugin):
             )
             return None
 
-    def validate_data(
-        self, df: pd.DataFrame, symbol: str
-    ) -> Dict[str, Any]:
+    def validate_data(self, df: pd.DataFrame, symbol: str) -> Dict[str, Any]:
         """验证数据质量
 
         Args:
@@ -294,13 +278,9 @@ class DataPipelinePlugin(BasePlugin):
             RuntimeError: 当插件未加载时
         """
         if self.pipeline is None:
-            raise RuntimeError(
-                "DataPipelinePlugin 未加载"
-            )
+            raise RuntimeError("DataPipelinePlugin 未加载")
 
-        result = self.pipeline.validate_data_quality(
-            df, symbol
-        )
+        result = self.pipeline.validate_data_quality(df, symbol)
 
         # 如果数据质量有问题，发布告警
         if not result.get("is_valid", True):
@@ -309,9 +289,7 @@ class DataPipelinePlugin(BasePlugin):
                 {
                     "symbol": symbol,
                     "issues": result.get("issues", []),
-                    "quality_score": result.get(
-                        "quality_score", 0
-                    ),
+                    "quality_score": result.get("quality_score", 0),
                 },
             )
 
@@ -327,6 +305,22 @@ class DataPipelinePlugin(BasePlugin):
         stats = self.pipeline.get_statistics()
         stats["fetch_count"] = self._fetch_count
         return stats
+
+    def get_cached_data(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
+        """获取缓存的 OHLCV 数据
+
+        供 API 层 /api/candles 端点使用。每次 fetch_data 成功后
+        数据会自动缓存到内存，此方法直接从缓存读取。
+
+        Args:
+            symbol: 交易对（如 "BTC/USDT"）
+            timeframe: 时间框架（如 "H4", "H1", "M15"）
+
+        Returns:
+            缓存的 DataFrame，无缓存时返回 None
+        """
+        cache_key = f"{symbol}:{timeframe}"
+        return self._data_cache.get(cache_key)
 
     # ---- 内部方法 ----
 
@@ -348,9 +342,7 @@ class DataPipelinePlugin(BasePlugin):
         timeframes = data.get("timeframes", ["1h"])
 
         if not symbol:
-            self._logger.warning(
-                "数据刷新请求缺少 symbol 参数"
-            )
+            self._logger.warning("数据刷新请求缺少 symbol 参数")
             return
 
         self._logger.debug(
@@ -400,13 +392,43 @@ class DataPipelinePlugin(BasePlugin):
         symbol: str,
         timeframe: str,
     ) -> None:
-        """发布 OHLCV 数据就绪事件"""
+        """发布 OHLCV 数据就绪事件
+
+        同时提供两种格式，保证向后兼容：
+        - df / timeframe: 旧格式（market_regime 等使用）
+        - data_dict / timeframes: 新格式（orchestrator 使用）
+        """
+        # 更新内存缓存（供 API get_cached_data 使用）
+        cache_key = f"{symbol}:{timeframe}"
+        self._data_cache[cache_key] = df
+        # OHLCV 完整性验证（WARNING 级别，不阻止处理）
+        from src.plugins.data_pipeline.ohlcv_validator import validate_ohlcv
+
+        validation = validate_ohlcv(df)
+        if not validation["valid"]:
+            self._logger.warning(
+                "OHLCV 验证未通过 [%s %s]: errors=%s, warnings=%s",
+                symbol,
+                timeframe,
+                validation["errors"],
+                validation["warnings"],
+            )
+        elif validation["warnings"]:
+            self._logger.warning(
+                "OHLCV 验证警告 [%s %s]: %s",
+                symbol,
+                timeframe,
+                validation["warnings"],
+            )
+
         self.emit_event(
             "data_pipeline.ohlcv_ready",
             {
-                "df": df,
                 "symbol": symbol,
+                "df": df,
                 "timeframe": timeframe,
+                "data_dict": {timeframe: df},
+                "timeframes": [timeframe],
                 "rows": len(df),
             },
         )

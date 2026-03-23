@@ -2,17 +2,27 @@
 
 import { create } from "zustand";
 import type {
+  AnalyzeResponse,
   Candle,
+  EvolutionCycleResult,
   EvolutionStatus,
   LogEntry,
   Position,
   SignalAlert,
   Timeframe,
+  TradeRecord,
+  V4WyckoffState,
   WyckoffStateResult,
 } from "../types/api";
 import type { WsStatus } from "./ws";
 
+type PageId = "trading" | "evolution" | "analysis";
+
 interface AppState {
+  // Page navigation
+  activePage: PageId;
+  setActivePage: (p: PageId) => void;
+
   // Selection
   symbol: string;
   timeframe: Timeframe;
@@ -40,9 +50,17 @@ interface AppState {
   evolution: EvolutionStatus | null;
   setEvolution: (e: EvolutionStatus) => void;
 
+  // Evolution Cycles (history)
+  evolutionCycles: EvolutionCycleResult[];
+  setEvolutionCycles: (c: EvolutionCycleResult[]) => void;
+
   // Signals
   signals: SignalAlert[];
   addSignal: (s: SignalAlert) => void;
+
+  // Trades
+  trades: TradeRecord[];
+  setTrades: (t: TradeRecord[]) => void;
 
   // Logs
   logs: LogEntry[];
@@ -53,6 +71,10 @@ interface AppState {
   isRunning: boolean;
   setSystemInfo: (uptime: number, running: boolean) => void;
 
+  // Advisor
+  advisorAnalysis: Record<string, unknown> | null;
+  setAdvisorAnalysis: (a: Record<string, unknown> | null) => void;
+
   // UI
   leftPanelOpen: boolean;
   rightPanelOpen: boolean;
@@ -60,6 +82,16 @@ interface AppState {
   toggleRightPanel: () => void;
   activeBottomTab: string;
   setActiveBottomTab: (t: string) => void;
+
+  // Analysis
+  analysisData: AnalyzeResponse | null;
+  setAnalysisData: (data: AnalyzeResponse | null) => void;
+  isAnalyzing: boolean;
+  setIsAnalyzing: (v: boolean) => void;
+
+  // V4 State Machine
+  v4State: V4WyckoffState | null;
+  setV4State: (s: V4WyckoffState | null) => void;
 }
 
 const MAX_SIGNALS = 50;
@@ -67,6 +99,10 @@ const MAX_LOGS = 200;
 const MAX_CANDLES = 1000;
 
 export const useStore = create<AppState>((set) => ({
+  // Page navigation
+  activePage: "trading",
+  setActivePage: (activePage) => set({ activePage }),
+
   // Selection
   symbol: "BTC/USDT",
   timeframe: "H4",
@@ -107,12 +143,20 @@ export const useStore = create<AppState>((set) => ({
   evolution: null,
   setEvolution: (evolution) => set({ evolution }),
 
+  // Evolution Cycles
+  evolutionCycles: [],
+  setEvolutionCycles: (evolutionCycles) => set({ evolutionCycles }),
+
   // Signals
   signals: [],
   addSignal: (signal) =>
     set((state) => ({
       signals: [signal, ...state.signals].slice(0, MAX_SIGNALS),
     })),
+
+  // Trades
+  trades: [],
+  setTrades: (trades) => set({ trades }),
 
   // Logs
   logs: [],
@@ -126,6 +170,10 @@ export const useStore = create<AppState>((set) => ({
   isRunning: false,
   setSystemInfo: (uptime, isRunning) => set({ uptime, isRunning }),
 
+  // Advisor
+  advisorAnalysis: null,
+  setAdvisorAnalysis: (advisorAnalysis) => set({ advisorAnalysis }),
+
   // UI
   leftPanelOpen: true,
   rightPanelOpen: true,
@@ -135,4 +183,14 @@ export const useStore = create<AppState>((set) => ({
     set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
   activeBottomTab: "positions",
   setActiveBottomTab: (activeBottomTab) => set({ activeBottomTab }),
+
+  // Analysis
+  analysisData: null,
+  setAnalysisData: (analysisData) => set({ analysisData }),
+  isAnalyzing: false,
+  setIsAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
+
+  // V4 State Machine
+  v4State: null,
+  setV4State: (v4State) => set({ v4State }),
 }));

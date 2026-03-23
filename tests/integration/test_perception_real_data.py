@@ -124,11 +124,11 @@ class TestCandlePhysicalRealData:
         candles = []
         for _, row in df.iterrows():
             c = CandlePhysical(
-                open=row["open"],
-                high=row["high"],
-                low=row["low"],
-                close=row["close"],
-                volume=row["volume"],
+                open=float(row["open"]),
+                high=float(row["high"]),
+                low=float(row["low"]),
+                close=float(row["close"]),
+                volume=float(row["volume"]),
             )
             candles.append(c)
             assert c.total_range >= 0

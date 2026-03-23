@@ -1,5 +1,5 @@
 name: pattern_detection
-version: "1.0.0"
+version: "3.0.0"
 description: "形态检测插件 - 整合TR识别、威科夫阶段检测和曲线边界拟合"
 author: "Wyckoff Engine Team"
 entry_point: plugin

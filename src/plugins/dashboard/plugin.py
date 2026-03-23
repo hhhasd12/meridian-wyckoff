@@ -57,8 +57,8 @@ class DashboardPlugin(BasePlugin):
         if self._monitor is not None:
             try:
                 self._monitor.stop_monitoring()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("stop_monitoring 失败: %s", e)
 
         self._visualizer = None
         self._monitor = None
@@ -79,8 +79,7 @@ class DashboardPlugin(BasePlugin):
 
         if self._visualizer is not None or self._monitor is not None:
             was_monitoring = (
-                self._monitor is not None
-                and self._monitor.monitoring_active
+                self._monitor is not None and self._monitor.monitoring_active
             )
 
             if was_monitoring:

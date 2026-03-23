@@ -258,6 +258,8 @@ class PerceptionPlugin(BasePlugin):
                 analyze_pin_vs_body,
             )
 
+            if context is None:
+                context = {}
             result = analyze_pin_vs_body(candle, context)
 
             self._analysis_count += 1

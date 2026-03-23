@@ -1,5 +1,5 @@
 name: data_pipeline
-version: "1.0.0"
+version: "3.0.0"
 description: "数据管道插件 - 多周期数据同步与缓存，支持CCXT/YFinance/CSV/API多数据源"
 author: "Wyckoff Engine Team"
 entry_point: plugin

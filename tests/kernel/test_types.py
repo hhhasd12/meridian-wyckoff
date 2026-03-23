@@ -277,7 +277,7 @@ class TestDecisionContext:
         """测试 numpy int64 时间戳的转换"""
         np_ts = np.int64(1705312200000)  # 毫秒时间戳
         ctx = DecisionContext(
-            timestamp=np_ts,
+            timestamp=np_ts,  # type: ignore
             market_regime="RANGING",
             regime_confidence=0.5,
             timeframe_weights={},
@@ -370,7 +370,7 @@ class TestTradingDecision:
             signal=TradingSignal.WAIT,
             confidence=0.3,
             context=ctx,
-            timestamp=np_ts,
+            timestamp=np_ts,  # type: ignore
         )
         d = td.to_dict()
         assert isinstance(d["timestamp"], str)

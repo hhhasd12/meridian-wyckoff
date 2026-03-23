@@ -1,5 +1,5 @@
 name: evolution_advisor
-version: "1.0.0"
+version: "3.0.0"
 description: "进化顾问 AI Agent - LLM分析进化系统表现，提供优化建议"
 author: "Wyckoff Engine Team"
 entry_point: plugin

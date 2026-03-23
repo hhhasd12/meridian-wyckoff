@@ -1,6 +1,6 @@
 # 威科夫全自动逻辑引擎 - 生产环境配置文件
 # 最后更新: 2026-02-06
-# 版本: v1.0
+# 版本: v3.0
 
 # ============================================================================
 # 重要提示
@@ -26,7 +26,7 @@ data_sources:
     enabled: true
     exchanges: ["binance", "bybit"]
     symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
-    timeframes: ["4h", "1h", "15m", "5m"]
+    timeframes: ["H4", "H1", "M15", "M5"]
     api_key: ""  # 通过环境变量 WYCKOFF_API_KEY 设置
     api_secret: ""  # 通过环境变量 WYCKOFF_API_SECRET 设置
     # 代理配置（中国大陆用户需要设置）
@@ -61,7 +61,7 @@ processing_interval: 60          # 数据处理间隔（秒）
 health_report_interval: 3600     # 健康报告间隔（秒）
 use_real_data: true              # 使用真实数据
 symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
-timeframes: ["H4", "H1", "M15"]
+timeframes: ["H4", "H1", "M15", "M5"]
 historical_days: 365              # 历史数据天数
 
 # ============================================================================
@@ -112,6 +112,7 @@ risk_management:
   # 合约风控
   margin_mode: "isolated"     # isolated=逐仓, cross=全仓
   liquidation_buffer: 0.1     # 强平预警缓冲 (距离强平价10%强制平仓)
+  # TODO: funding rate 监控（v3.1 计划）
 
 # ============================================================================
 # 性能与监控配置
@@ -232,7 +233,7 @@ plugins:
   orchestrator:
     mode: "paper"
     symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
-    timeframes: ["H4", "H1", "M15"]
+    timeframes: ["H4", "H1", "M15", "M5"]
     data_refresh_interval: 60
     cycle_interval: 60
   exchange_connector:
@@ -255,6 +256,40 @@ plugins:
     storage_path: "./evolution_memory.jsonl"
     max_queue_size: 1000
     process_interval: 1.0
+    # GA 超参数
+    population_size: 24
+    max_generations: 50
+    # 进化可搜索的参数空间（WyckoffEngine 消费的配置）
+    initial_config:
+      # 信号控制
+      signal_control:
+        cooldown_bars: 8
+      # 置信度阈值
+      threshold_parameters:
+        confidence_threshold: 0.35
+      # 周期权重过滤器（按市场体制分配 TF 权重）
+      period_weight_filter:
+        weights:
+          D1: 0.10
+          H4: 0.40
+          H1: 0.30
+          M15: 0.15
+          M5: 0.05
+      # 状态机参数
+      state_machine:
+        transition_confidence: 0.6
+      # 市场体制检测
+      market_regime:
+        atr_period: 14
+        adx_period: 14
+      # TR 检测器
+      tr_detector:
+        min_consolidation_bars: 8
+        boundary_tolerance: 0.02
+      # 突破验证
+      breakout_validator:
+        confirmation_bars: 3
+        volume_threshold: 1.2
   self_correction:
     enabled: true
     correction_interval: 86400
@@ -271,12 +306,17 @@ plugins:
     enabled: true
   wyckoff_state_machine:
     enabled: true
+  position_manager:
+    max_position_pct: 0.20
+    max_positions: 3
+    default_leverage: 1
+    max_leverage: 10
 
 # ============================================================================
 # 启动说明
 # ============================================================================
-# 1. 启动命令: python run_live.py
-# 2. 指定配置文件: python run_live.py custom_config.yaml
+# 1. 启动命令: python run.py
+# 2. 指定配置文件: python run.py custom_config.yaml
 # 3. 停止命令: Ctrl+C
 # 4. 查看日志: tail -f logs/wyckoff_production.log
 # 5. 健康报告: 每小时自动生成，保存在 reports/ 目录

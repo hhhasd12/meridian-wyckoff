@@ -1,0 +1,63 @@
+==============================================================
+[H5] data_pipeline 事件 Schema 修复 — 验证报告
+==============================================================
+日期: 2026-03-21
+任务: 修复 data_pipeline.ohlcv_ready 事件格式与 orchestrator._on_data_ready 期望格式不匹配
+
+--------------------------------------------------------------
+问题分析
+--------------------------------------------------------------
+发送端 (data_pipeline._publish_ohlcv_ready):
+  {"df": df, "symbol": symbol, "timeframe": timeframe, "rows": N}
+
+接收端 (orchestrator._on_data_ready) 期望:
+  {"symbol": symbol, "data_dict": {timeframe: df}, "timeframes": [...]}
+
+其他消费者 (market_regime._on_ohlcv_ready) 期望:
+  {"df": df}  (旧格式)
+
+--------------------------------------------------------------
+修复方案
+--------------------------------------------------------------
+选择: 向后兼容方案 — 在 data_pipeline 端同时发送新旧两种格式的 key
+
+修改文件: src/plugins/data_pipeline/plugin.py
+修改方法: _publish_ohlcv_ready()
+
+修改前:
+  emit_event("data_pipeline.ohlcv_ready", {
+      "df": df,
+      "symbol": symbol,
+      "timeframe": timeframe,
+      "rows": len(df),
+  })
+
+修改后:
+  emit_event("data_pipeline.ohlcv_ready", {
+      "symbol": symbol,
+      "df": df,                       # 旧格式 (market_regime 使用)
+      "timeframe": timeframe,         # 旧格式 (测试兼容)
+      "data_dict": {timeframe: df},   # 新格式 (orchestrator 使用)
+      "timeframes": [timeframe],      # 新格式 (orchestrator 使用)
+      "rows": len(df),
+  })
+
+--------------------------------------------------------------
+验证: 轮询路径不受影响
+--------------------------------------------------------------
+orchestrator._fetch_data_from_connector() 直接调用 _process_market_data()，
+不经过事件总线，因此不受此修改影响。 ✓
+
+--------------------------------------------------------------
+测试结果
+--------------------------------------------------------------
+命令: pytest tests/ --tb=short -q
+结果: 859 passed, 571 warnings in 8.12s ✓
+
+所有测试通过，包括:
+- test_data_pipeline.py (schema 兼容性)
+- test_market_regime.py (旧格式 df key)
+- test_signal_chain.py (data_dict 格式)
+- test_multi_plugin_event_chain.py (完整事件链)
+- test_e2e_full_pipeline.py (端到端)
+==============================================================

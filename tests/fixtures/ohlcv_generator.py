@@ -79,7 +79,10 @@ def make_ohlcv(
     lows = np.maximum(lows, base * 0.05)
     opens = np.maximum(opens, lows)
     closes = np.maximum(closes, lows)
+
+    # 确保 OHLC 有效性: high >= max(open, close), low <= min(open, close)
     highs = np.maximum(highs, np.maximum(opens, closes))
+    lows = np.minimum(lows, np.minimum(opens, closes))
 
     # 确保 volumes 正数
     volumes = np.maximum(volumes, 100)
@@ -111,6 +114,7 @@ def make_multi_tf_data(
     H4: h4_bars 根
     H1: h4_bars * 4 根
     M15: h4_bars * 16 根
+    M5: h4_bars * 48 根
 
     所有TF使用相同趋势方向但独立噪声。
 
@@ -120,7 +124,7 @@ def make_multi_tf_data(
         seed: 随机种子
 
     Returns:
-        Dict[str, DataFrame] — {"H4": ..., "H1": ..., "M15": ...}
+        Dict[str, DataFrame] — {"H4": ..., "H1": ..., "M15": ..., "M5": ...}
     """
     data: Dict[str, pd.DataFrame] = {}
 
@@ -134,5 +138,9 @@ def make_multi_tf_data(
     # M15 — 16倍K线数
     m15_bars = h4_bars * 16
     data["M15"] = make_ohlcv(m15_bars, trend=trend, seed=seed + 2)
+
+    # M5 — 48倍K线数（H4=240分钟, M5=5分钟 → 48倍）
+    m5_bars = h4_bars * 48
+    data["M5"] = make_ohlcv(m5_bars, trend=trend, seed=seed + 3)
 
     return data

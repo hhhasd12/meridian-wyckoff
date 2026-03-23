@@ -1,5 +1,5 @@
 name: weight_system
-version: "1.0.0"
+version: "3.0.0"
 description: "周期权重系统插件 - 管理多时间框架权重分配与加权决策"
 author: "Wyckoff Engine Team"
 entry_point: plugin

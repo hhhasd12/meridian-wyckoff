@@ -23,7 +23,7 @@ export default function BottomTabs({ tabs }: BottomTabsProps) {
           <button
             key={tab.id}
             onClick={() => setActiveId(tab.id)}
-            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+            className={`px-3 py-1.5 text-sm font-medium border-b-2 transition-all duration-200 ${
               activeId === tab.id
                 ? "border-accent-blue text-accent-blue"
                 : "border-transparent text-text-secondary hover:text-text-primary"
@@ -35,7 +35,7 @@ export default function BottomTabs({ tabs }: BottomTabsProps) {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-auto p-2">
+      <div className="flex-1 overflow-auto p-2 animate-fade-in" key={activeId}>
         {activeTab?.content}
       </div>
     </div>

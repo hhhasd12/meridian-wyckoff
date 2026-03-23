@@ -54,17 +54,14 @@ class WyckoffStateMachinePlugin(BasePlugin):
         self._prev_state: Optional[str] = None
 
     def on_load(self) -> None:
-        """加载插件，初始化状态机
-
-        使用单个 EnhancedWyckoffStateMachine 实例（继承自 WyckoffStateMachine），
-        同时赋值给 _state_machine 和 _enhanced_sm 以保持 API 兼容性。
+        """加载插件，初始化 V4 状态机
 
         Raises:
             PluginError: 当核心状态机模块无法导入时
         """
         try:
-            from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
-                EnhancedWyckoffStateMachine,
+            from src.plugins.wyckoff_state_machine.state_machine_v4 import (
+                WyckoffStateMachineV4,
             )
 
             # 构建 StateConfig（不传 dict，避免类型不匹配）
@@ -72,12 +69,11 @@ class WyckoffStateMachinePlugin(BasePlugin):
             if self._config:
                 sm_config.update_from_dict(self._config)
 
-            # 单实例：EnhancedWyckoffStateMachine 继承自 WyckoffStateMachine，
-            # 同时具备 process_candle() 和 generate_signals() 能力
-            instance = EnhancedWyckoffStateMachine(sm_config)
+            # V4 单实例
+            instance = WyckoffStateMachineV4("H4", sm_config)
             self._state_machine = instance
-            self._enhanced_sm = instance  # 同一实例，消除 C-05 双实例断裂
-            logger.info("WyckoffStateMachinePlugin loaded successfully")
+            self._enhanced_sm = instance  # 兼容旧属性引用
+            logger.info("WyckoffStateMachinePlugin loaded (V4)")
         except ImportError as e:
             logger.error("WyckoffStateMachine not available: %s", e)
             raise PluginError(

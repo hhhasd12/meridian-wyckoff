@@ -104,7 +104,7 @@ class TestEvolutionStatus:
         status = self.plugin.get_evolution_status()
         assert status["status"] == "stopped"
         assert status["cycle_count"] == 0
-        assert status["start_time"] is None
+        assert status["is_running"] is False
 
     def test_get_current_config_initial(self):
         """测试初始配置"""

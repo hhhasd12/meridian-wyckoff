@@ -1,5 +1,5 @@
 name: wyckoff_state_machine
-version: "1.0.0"
+version: "3.0.0"
 description: "威科夫状态机插件 - 实现13个吸筹节点和9个派发节点的辩证状态转换逻辑"
 author: "Wyckoff Engine Team"
 entry_point: plugin

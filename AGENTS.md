@@ -1,12 +1,24 @@
 # AGENTS.md - 威科夫全自动逻辑引擎开发指南
 
-> **⚠️ 语言规则（不可删除、不可修改）：所有面向用户的输出必须使用中文。更新本文档时必须保留此规则。写入文件最大不超过200行，100行为标准，不然会报错**
+> **⚠️ 语言规则（不可删除、不可修改）：所有面向用户的输出必须使用中文。更新本文档时必须保留此规则。写入内容每次最大不超过200行，100行为标准，不然会报错**
+
+> **⚠️ 记忆规则（不可删除、不可修改）：每次对话开始时必须读取记忆图谱（memory_read_graph）。遇到以下情况必须写入记忆：**
+> 1. **架构级发现**：插件关系变更、事件链路变更、新增/删除插件
+> 2. **系统级坑**：影响多个插件的设计缺陷或反直觉行为（如 `on_load` vs `activate`）
+> 3. **项目状态变更**：里程碑完成、优先级调整、重大决策
+> 4. **不该记忆的**：日常 bug fix、单文件改动、测试数量变化 — 代码和测试已保障
 
 本文档为AI代理（如opencode）提供在本代码库中工作的指导，包含构建、测试命令和代码风格规范。
 
 ## 项目概述
 
 威科夫全自动逻辑引擎是一个基于威科夫理论的自动化交易系统，用于加密货币市场。项目采用**三层插件化架构**设计：
+
+### 核心设计哲学（不可删除、不可修改）
+
+> **进化的核心是状态机的进化。策略就是在什么阶段做什么事就是对的。识别不出来阶段，状态机做不到，策略自然会失效。**
+>
+> — 一切功能围绕状态机识别准确率展开。进化系统、交易策略、风控都是状态机的下游消费者。状态机识别不对，后面全错。系统应该是无限进化的：用户标注 → AI诊断差异 → agent修改检测器 → 重跑验证 → 循环。
 
 ### 架构层次
 
@@ -19,11 +31,12 @@ src/
 │   ├── plugin_manager.py  # 插件生命周期管理
 │   ├── event_bus.py       # 事件总线（发布/订阅）
 │   └── config_system.py   # 配置系统（YAML + 环境变量）
-├── plugins/         # 插件层（可插拔）— 15个业务插件
+├── plugins/         # 插件层（可插拔）— 18个业务插件
 │   ├── market_regime/     # 市场体制检测
 │   ├── data_pipeline/     # 数据管道
 │   ├── orchestrator/      # 系统编排器
 │   ├── wyckoff_state_machine/  # 威科夫状态机
+│   ├── wyckoff_engine/    # 威科夫引擎（统一分析入口）
 │   ├── pattern_detection/ # K线形态识别
 │   ├── perception/        # 感知层（FVG/K线物理属性/针体分析）
 │   ├── signal_validation/ # 信号验证
@@ -34,7 +47,9 @@ src/
 │   ├── exchange_connector/# 交易所连接器
 │   ├── dashboard/         # Web 仪表盘
 │   ├── self_correction/   # 自我纠错
-│   └── agent_teams/       # AI Agent 团队（代码诊断/策略优化）
+│   ├── evolution_advisor/ # 进化顾问（AI策略优化）
+│   ├── telegram_notifier/ # Telegram 通知
+│   └── audit_logger/      # 审计日志
 ├── api/             # FastAPI 后端（REST API + WebSocket）
 └── utils/           # 工具层
 ```
@@ -47,6 +62,67 @@ src/
 ### 关键文档
 
 - **`docs/PLUGIN_DEVELOPMENT.md`** — 插件开发完整指南
+- **`.sisyphus/plans/system-architecture-v3.md`** — 权威架构设计文档（2564+行）
+
+### v3.0 完成状态（2026-03-21 生产就绪）
+
+> **⚠️ 当前状态：v3.0 全部完成，1271 tests passing（含冒烟+集成+API契约测试），全系统接线修复完毕。下一步是进化系统端到端验证。**
+
+**已完成的 8 个 Phase：**
+
+| Phase | 内容 | 状态 |
+|-------|------|------|
+| Phase 0 | 清理死代码（删12000行） | ✅ |
+| Phase 1 | 状态机重建（TransitionGuard + StateMachineV2, 22+4状态） | ✅ 611 tests |
+| Phase 2 | WyckoffEngine重建（类型化接口 + process_bar） | ✅ 632 tests |
+| Phase 3 | 事件链接通（Orchestrator→trading.signal→PositionManager→Exchange） | ✅ 648 tests |
+| Phase 4 | 进化系统重建（BarByBarBacktester + GA + WFA + 5层防过拟合） | ✅ 689 tests |
+| Phase 5 | 后端API（4端点 + WebSocket） | ✅ 707 tests |
+| Phase 6 | 前端从零构建（React 18 + TS + Vite + Tailwind + LWC v5.1） | ✅ 2337行 |
+| Phase 7 | 进化顾问AI Agent（OpenAI/Ollama双后端） | ✅ 738 tests |
+| Phase 8 | Numba加速 + SelfCorrection集成 | ✅ |
+
+**生产就绪审计结果：** F1 PASS (10/10 Must Have) | F2+F3 PASS (1271 tests) | F4 PASS (27/27 compliant)
+
+**18个插件：** market_regime, data_pipeline, orchestrator, wyckoff_state_machine, wyckoff_engine, pattern_detection, perception, signal_validation, risk_management, position_manager, weight_system, evolution, exchange_connector, dashboard, self_correction, evolution_advisor, telegram_notifier, audit_logger
+
+**技术栈：** Python 3.9+ | FastAPI | React 18 + TypeScript + Vite | Docker | 1271 tests
+
+### `.sisyphus/` 归档
+
+| 文件 | 说明 | 状态 |
+|------|------|------|
+| `plans/system-architecture-v3.md` | 权威架构设计文档（2675行） | 📖 参考文档 |
+| `plans/production-readiness.md` | 生产就绪修复计划（31 Tasks, 5 Wave） | ✅ 已归档 |
+| `plans/architecture-redesign.md` | v3.0 架构重组（Phase 1-5） | ✅ 已归档 |
+| `plans/evolution-redesign.md` | 进化子系统重建 | ✅ 已归档 |
+| `plans/evolution-dashboard.md` | 前端进化仪表盘（Wave A-D） | ✅ 已归档 |
+| `handoff_evolution_diagnosis.md` | 进化系统 13 个 BUG 诊断与修复 | ✅ 全部修复 |
+| `handoff_evolution_wfa_fix.md` | WFA 接受率修复 | ✅ 已修复 |
+| `plans/evolution-overfit-fix.md` | 进化过拟合修复（7根因, 5/7已修复） | ✅ 已审计+部分修复 |
+| `plans/frontend-integration.md` | 前后端集成（被 full-system-cleanup 取代） | ✅ 已归档 |
+| `plans/full-system-cleanup.md` | 全系统清理（死代码+集成+进化修复） | 🔧 执行中 |
+
+### 插件开发关键陷阱（必读）
+
+1. **生命周期只有 `on_load()`**：`PluginManager.load_plugin()` 只调用 `on_load()`，**永远不调用 `activate()`**。所有初始化逻辑必须放在 `on_load()` 里，不能放在 `activate()` 里。
+2. **API 方法必须存在**：如果 `src/api/app.py` 调用了 `plugin.some_method()`，该方法必须在插件的 `plugin.py` 中定义。否则前端对应功能会静默失败。
+3. **事件数据格式是契约**：修改事件发布的字段时，必须同步更新所有订阅者。用 `tests/test_integration_chain.py::TestEventContracts` 验证。
+
+### 验证工具
+
+```bash
+# 系统完整性检查（插件初始化 + API方法 + 事件链路）
+python check_system_integrity.py
+
+# 三层测试
+pytest tests/test_smoke.py -q          # 冒烟（5秒）
+pytest tests/test_integration_chain.py -q  # 集成（15秒）
+pytest tests/test_api_contract.py -q   # API契约（25秒）
+
+# 全部测试
+pytest tests/ -q                       # 1271 tests（72秒）
+```
 
 ## 构建和测试命令
 
@@ -116,7 +192,7 @@ python run.py --mode=all
 python health_check.py
 
 # 运行安装脚本
-python setup.py
+pip install -r requirements.txt
 
 # 清理缓存文件
 find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
@@ -139,7 +215,7 @@ from typing import Dict, List, Tuple, Optional
 from enum import Enum
 from dataclasses import dataclass
 
-from src.core.market_regime import MarketRegime
+from src.kernel.types import MarketRegime
 from src.utils.data_helpers import normalize_data
 ```
 
@@ -334,7 +410,7 @@ mypy src/
 
 - **内核层**（`src/kernel/`）不依赖任何插件，是系统基础
 - **插件层**（`src/plugins/`）只依赖内核层，插件间通过事件总线通信
-- **兼容层**（`src/core/`）已删除（v2.1），所有实现已迁移至 `src/plugins/`
+- **兼容层**（`src/core/`）已删除，所有实现已迁移至 `src/plugins/`
 - 打破循环依赖，使用事件总线或回调
 - 新功能优先以**插件**形式开发，参考 `docs/PLUGIN_DEVELOPMENT.md`
 - 保持模块职责单一，避免上帝对象
@@ -361,6 +437,6 @@ mypy src/
 
 ---
 
-*本文档最后更新：2026-03-19*
-*对应项目版本：威科夫全自动逻辑引擎 v2.1（架构清理）*  
-*参考文件：requirements.txt, setup.py, config.yaml, src/app.py, docs/PLUGIN_DEVELOPMENT.md*
+*本文档最后更新：2026-03-21*
+*对应项目版本：威科夫全自动逻辑引擎 v3.0（生产就绪）*  
+*参考文件：requirements.txt, config.yaml, src/app.py, docs/PLUGIN_DEVELOPMENT.md*

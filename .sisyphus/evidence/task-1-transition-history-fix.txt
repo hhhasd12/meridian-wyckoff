@@ -1,0 +1,19 @@
+Task 1: Fix transition_history from==to bug in _confirm_and_advance()
+=====================================================================
+
+Bug: Line 570 set self.last_confirmed_event = hyp.event_name BEFORE
+     line 594 used self.last_confirmed_event as "from" in transition_history.
+     Result: both "from" and "to" were always hyp.event_name (identical).
+
+Fix: Added `old_event = self.last_confirmed_event` before the update,
+     changed line 594 from `self.last_confirmed_event` to `old_event`.
+
+Files modified:
+  - src/plugins/wyckoff_state_machine/state_machine_v4.py (2 lines changed)
+  - tests/plugins/test_state_machine_v4.py (2 regression tests added)
+
+Test result: 32 passed (was 30, +2 new regression tests)
+
+Regression tests:
+  1. test_transition_history_from_differs_from_to: IDLE→PS, asserts from="IDLE", to="PS"
+  2. test_two_consecutive_transitions_record_correct_from: IDLE→PS→SC, asserts second record from="PS", to="SC"

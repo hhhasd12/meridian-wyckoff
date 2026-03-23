@@ -23,7 +23,7 @@
 ```mermaid
 graph TB
     subgraph 实盘模式
-        RL[run_live.py] --> WA[WyckoffApp]
+        RL[run.py] --> WA[WyckoffApp]
         WA --> PM[PluginManager]
         PM --> OP[OrchestratorPlugin]
         PM --> DP[DataPipelinePlugin]
@@ -58,7 +58,7 @@ graph TB
 
 ### 3.1 入口分离 — ✅ 完全分离
 
-**实盘入口** [`run_live.py`](../run_live.py):
+**实盘入口** [`run.py`](../run.py):
 - 使用 [`WyckoffApp`](../src/app.py:31) 插件化架构
 - 调用 `app.start()` → `app.run_loop()` → 委托给 `OrchestratorPlugin.run_loop()`
 - 加载**所有14个插件**，包括 `exchange_connector`、`data_pipeline` 等

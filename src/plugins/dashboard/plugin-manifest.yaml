@@ -1,5 +1,5 @@
 name: dashboard
-version: "1.0.0"
+version: "3.0.0"
 description: "Web仪表盘插件 - 提供实时监控界面和API"
 author: "Wyckoff Engine Team"
 entry_point: plugin

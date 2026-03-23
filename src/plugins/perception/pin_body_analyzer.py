@@ -38,7 +38,7 @@
 import warnings
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 
@@ -79,7 +79,7 @@ class PinBodyAnalysisResult:
     effort_ratio: Optional[float] = None  # 努力比率（成交量倍数）
     result_ratio: Optional[float] = None  # 结果比率（实体大小倍数）
     volume_confirmation: bool = False  # 成交量确认
-    dynamic_thresholds_used: dict[str, float] = None  # 使用的动态阈值
+    dynamic_thresholds_used: Optional[dict[str, Any]] = None  # 使用的动态阈值
     confidence: float = 0.0  # 总体置信度
 
     def __post_init__(self):
@@ -312,7 +312,7 @@ def _is_at_support_resistance(candle: CandlePhysical, context: AnalysisContext) 
 
 
 def analyze_candle_series(
-    candles: list[Union[CandlePhysical, dict[str, float]]],
+    candles: Sequence[Union[CandlePhysical, dict[str, float]]],
     context: Union[AnalysisContext, dict[str, Any]],
 ) -> list[PinBodyAnalysisResult]:
     """
@@ -465,7 +465,6 @@ def get_recommendation(
 
 # 测试代码
 if __name__ == "__main__":
-
     # 创建测试K线
     test_candles = [
         CandlePhysical(open=100, high=115, low=95, close=101, volume=2000),  # 长上影线
@@ -495,7 +494,6 @@ if __name__ == "__main__":
     results = analyze_candle_series(test_candles, test_context)
     stats = get_dominant_pattern_statistics(results)
 
-
     # 测试交易建议
     for i, (candle, result) in enumerate(zip(test_candles, results)):
         recommendation = get_recommendation(result, test_context, candle=candle)
@@ -516,4 +514,3 @@ if __name__ == "__main__":
         avg_body_size=5.0,
     )
     result_low_vol = analyze_pin_vs_body(test_candles[0], low_vol_context)
-

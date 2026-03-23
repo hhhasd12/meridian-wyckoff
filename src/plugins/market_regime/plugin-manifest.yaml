@@ -1,5 +1,5 @@
 name: market_regime
-version: "1.0.0"
+version: "3.0.0"
 description: "市场体制（Regime）检测插件 — 基于ATR、ADX、历史波动率判断市场体制"
 author: "Wyckoff Engine Team"
 entry_point: plugin

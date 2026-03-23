@@ -57,6 +57,7 @@ class PositionManager:
         account_balance: float,
         entry_price: float,
         stop_loss: float,
+        leverage: float = 1.0,
     ) -> float:
         """计算仓位大小
 
@@ -64,6 +65,7 @@ class PositionManager:
             account_balance: 账户余额
             entry_price: 入场价格
             stop_loss: 止损价格
+            leverage: 杠杆倍数（默认1.0），放大可用保证金
 
         Returns:
             仓位大小（合约数量）
@@ -76,7 +78,10 @@ class PositionManager:
 
         position_size = risk_amount / price_risk
 
-        max_size_by_balance = account_balance * self._max_position_size / entry_price
+        # 杠杆放大可用余额上限
+        max_size_by_balance = (
+            account_balance * self._max_position_size * leverage / entry_price
+        )
         min_size_by_balance = account_balance * self._min_position_size / entry_price
 
         position_size = min(position_size, max_size_by_balance)
@@ -89,6 +94,66 @@ class PositionManager:
 
         return position_size
 
+    def fractional_kelly(
+        self,
+        win_rate: float,
+        avg_win: float,
+        avg_loss: float,
+        kelly_fraction: float = 0.25,
+        max_position_pct: float = 0.20,
+        leverage: float = 1.0,
+    ) -> float:
+        """使用Kelly公式计算最优仓位比例
+
+        Args:
+            win_rate: 历史胜率 [0, 1]
+            avg_win: 平均盈利金额（正数）
+            avg_loss: 平均亏损金额（正数）
+            kelly_fraction: Kelly分数（默认0.25，即1/4 Kelly）
+            max_position_pct: 仓位上限百分比（默认0.20）
+            leverage: 杠杆倍数（默认1.0）
+
+        Returns:
+            建议仓位百分比 [0, max_position_pct]
+        """
+        if avg_loss <= 0 or avg_win <= 0 or leverage <= 0:
+            return 0.0
+
+        b = avg_win / avg_loss
+        q = 1 - win_rate
+        full_kelly = (win_rate * b - q) / b
+
+        result = max(0.0, full_kelly * kelly_fraction / leverage)
+        return min(result, max_position_pct)
+
+    def anti_martingale_adjustment(
+        self,
+        base_size: float,
+        consecutive_wins: int,
+        current_drawdown_pct: float,
+    ) -> float:
+        """反马丁格尔仓位动态调整
+
+        连赢时逐步加仓，回撤时缩减仓位。
+
+        Args:
+            base_size: 基础仓位大小
+            consecutive_wins: 连续盈利次数
+            current_drawdown_pct: 当前回撤百分比 [0, 1]
+
+        Returns:
+            调整后的仓位大小
+        """
+        if current_drawdown_pct > 0.20:
+            return 0.0
+
+        if current_drawdown_pct > 0.10:
+            return base_size * 0.5
+
+        capped_wins = min(consecutive_wins, 5)
+        adjusted = base_size * (1.2**capped_wins)
+        return min(adjusted, base_size * 3.0)
+
     def open_position(
         self,
         symbol: str,
@@ -100,6 +165,7 @@ class PositionManager:
         entry_signal: TradingSignal,
         df: pd.DataFrame,
         metadata: Optional[Dict[str, Any]] = None,
+        leverage: float = 1.0,
     ) -> Optional[Position]:
         """开仓
 
@@ -148,6 +214,7 @@ class PositionManager:
             wyckoff_state=wyckoff_state,
             entry_signal=entry_signal,
             entry_atr=entry_atr,
+            leverage=leverage,
             metadata=metadata or {},
         )
 
@@ -196,7 +263,7 @@ class PositionManager:
                 position.side, position.entry_price, exit_price, close_size
             )
             pnl_pct = self._calculate_pnl_pct(
-                position.side, position.entry_price, exit_price
+                position.side, position.entry_price, exit_price, position.leverage
             )
 
             trade_result = TradeResult(
@@ -233,7 +300,7 @@ class PositionManager:
                 position.side, position.entry_price, exit_price, position.size
             )
             pnl_pct = self._calculate_pnl_pct(
-                position.side, position.entry_price, exit_price
+                position.side, position.entry_price, exit_price, position.leverage
             )
 
             trade_result = TradeResult(
@@ -402,12 +469,14 @@ class PositionManager:
         side: PositionSide,
         entry_price: float,
         exit_price: float,
+        leverage: float = 1.0,
     ) -> float:
-        """计算盈亏百分比"""
+        """计算盈亏百分比（相对于保证金，乘以杠杆倍数）"""
         if side == PositionSide.LONG:
-            return (exit_price - entry_price) / entry_price
+            price_change_pct = (exit_price - entry_price) / entry_price
         else:
-            return (entry_price - exit_price) / entry_price
+            price_change_pct = (entry_price - exit_price) / entry_price
+        return price_change_pct * leverage
 
     def force_close_all(self, exit_prices: Dict[str, float]) -> List[TradeResult]:
         """强制平仓所有持仓

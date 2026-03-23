@@ -25,10 +25,10 @@ cp config.yaml config_production.yaml
 ### 3. 启动系统
 ```bash
 # 使用默认配置启动
-python run_live.py
+python run.py --mode=trading
 
 # 使用自定义配置启动
-python run_live.py config_production.yaml
+python run.py --mode=trading config_production.yaml
 ```
 
 ## 📋 核心功能
@@ -196,7 +196,7 @@ git pull origin main
 pip install -r requirements.txt
 
 # 重启系统
-python run_live.py
+python run.py --mode=trading
 ```
 
 ### 定期维护

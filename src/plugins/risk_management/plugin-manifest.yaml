@@ -1,5 +1,5 @@
 name: risk_management
-version: "1.0.0"
+version: "3.0.0"
 description: "风险管理插件 - 整合熔断器和异常验证器"
 author: "Wyckoff Engine Team"
 entry_point: plugin

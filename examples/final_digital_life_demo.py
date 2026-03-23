@@ -43,7 +43,7 @@ from src.plugins.signal_validation.conflict_resolver import (
     ConflictType,
 )
 from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
-from src.plugins.wyckoff_state_machine.wyckoff_state_machine_legacy import (
+from src.plugins.wyckoff_state_machine.state_machine_core import (
     WyckoffStateMachine,
 )
 from src.plugins.self_correction.mistake_book import (
@@ -51,8 +51,8 @@ from src.plugins.self_correction.mistake_book import (
     MistakeType,
     ErrorSeverity,
 )
-from src.plugins.evolution.weight_variator_legacy import WeightVariator
-from src.plugins.evolution.wfa_backtester import WFABacktester
+from src.plugins.evolution.weight_variator_legacy import WeightVariator  # type: ignore[import-not-found]  # TODO: update to current API
+from src.plugins.evolution.wfa_backtester import WFABacktester  # type: ignore[import-not-found]  # TODO: update to current API
 from src.plugins.dashboard.performance_monitor import PerformanceMonitor, ModuleType
 
 

@@ -77,10 +77,10 @@ class StateMarkerPaneView implements IPrimitivePaneView {
   private _color = "#8b949e";
 
   setData(state: string, phase: WyckoffPhase): void {
-    this._state = state;
-    this._phase = phase;
+    this._state = state ?? "";
+    this._phase = phase ?? "IDLE";
     // Pick color from state abbreviation
-    const abbrev = state.toUpperCase().replace(/[^A-Z]/g, "");
+    const abbrev = (state ?? "").toUpperCase().replace(/[^A-Z]/g, "");
     this._color = STATE_COLORS[abbrev] ?? "#8b949e";
   }
 

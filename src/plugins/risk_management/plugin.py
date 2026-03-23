@@ -1,9 +1,9 @@
 """
 风险管理插件 - 整合熔断器和异常验证器
 
-包装以下核心模块：
-- src/core/circuit_breaker.py (CircuitBreaker)
-- src/core/anomaly_validator.py (AnomalyValidator)
+包装以下模块：
+- src/plugins/risk_management/circuit_breaker.py (CircuitBreaker)
+- src/plugins/risk_management/anomaly_validator.py (AnomalyValidator)
 """
 
 import logging
@@ -29,12 +29,11 @@ class RiskManagementPlugin(BasePlugin):
     4. 统计追踪：记录各类操作的调用次数
     """
 
-    def __init__(
-        self, name: str = "risk_management"
-    ) -> None:
+    def __init__(self, name: str = "risk_management") -> None:
         super().__init__(name)
         self._circuit_breaker: Optional[Any] = None
         self._anomaly_validator: Optional[Any] = None
+        self._capital_guard: Optional[Any] = None
         self._quality_update_count: int = 0
         self._anomaly_validate_count: int = 0
         self._last_error: Optional[str] = None
@@ -52,31 +51,22 @@ class RiskManagementPlugin(BasePlugin):
         av_config = config.get("anomaly_validator", {})
 
         self._circuit_breaker = CircuitBreaker(
-            trip_threshold=cb_config.get(
-                "trip_threshold", 0.3
-            ),
-            recovery_threshold=cb_config.get(
-                "recovery_threshold", 0.8
-            ),
-            min_recovery_time=cb_config.get(
-                "min_recovery_time", 60
-            ),
-            max_trip_duration=cb_config.get(
-                "max_trip_duration", 300
-            ),
+            trip_threshold=cb_config.get("trip_threshold", 0.3),
+            recovery_threshold=cb_config.get("recovery_threshold", 0.8),
+            min_recovery_time=cb_config.get("min_recovery_time", 60),
+            max_trip_duration=cb_config.get("max_trip_duration", 300),
         )
 
         self._anomaly_validator = AnomalyValidator(
-            correlation_threshold=av_config.get(
-                "correlation_threshold", 2.0
-            ),
-            price_deviation_threshold=av_config.get(
-                "price_deviation_threshold", 0.02
-            ),
-            min_confidence=av_config.get(
-                "min_confidence", 0.7
-            ),
+            correlation_threshold=av_config.get("correlation_threshold", 2.0),
+            price_deviation_threshold=av_config.get("price_deviation_threshold", 0.02),
+            min_confidence=av_config.get("min_confidence", 0.7),
         )
+
+        # 初始化资金守卫
+        from src.plugins.risk_management.capital_guard import CapitalGuard
+
+        self._capital_guard = CapitalGuard(config, event_callback=self.emit_event)
 
         logger.info("风险管理插件加载完成")
 
@@ -84,14 +74,13 @@ class RiskManagementPlugin(BasePlugin):
         """卸载插件，清理资源"""
         self._circuit_breaker = None
         self._anomaly_validator = None
+        self._capital_guard = None
         self._quality_update_count = 0
         self._anomaly_validate_count = 0
         self._last_error = None
         logger.info("风险管理插件已卸载")
 
-    def on_config_update(
-        self, new_config: Dict[str, Any]
-    ) -> None:
+    def on_config_update(self, new_config: Dict[str, Any]) -> None:
         """配置更新时重新创建组件
 
         Args:
@@ -105,38 +94,22 @@ class RiskManagementPlugin(BasePlugin):
                 AnomalyValidator,
             )
 
-            cb_config = new_config.get(
-                "circuit_breaker", {}
-            )
-            av_config = new_config.get(
-                "anomaly_validator", {}
-            )
+            cb_config = new_config.get("circuit_breaker", {})
+            av_config = new_config.get("anomaly_validator", {})
 
             self._circuit_breaker = CircuitBreaker(
-                trip_threshold=cb_config.get(
-                    "trip_threshold", 0.3
-                ),
-                recovery_threshold=cb_config.get(
-                    "recovery_threshold", 0.8
-                ),
-                min_recovery_time=cb_config.get(
-                    "min_recovery_time", 60
-                ),
-                max_trip_duration=cb_config.get(
-                    "max_trip_duration", 300
-                ),
+                trip_threshold=cb_config.get("trip_threshold", 0.3),
+                recovery_threshold=cb_config.get("recovery_threshold", 0.8),
+                min_recovery_time=cb_config.get("min_recovery_time", 60),
+                max_trip_duration=cb_config.get("max_trip_duration", 300),
             )
 
             self._anomaly_validator = AnomalyValidator(
-                correlation_threshold=av_config.get(
-                    "correlation_threshold", 2.0
-                ),
+                correlation_threshold=av_config.get("correlation_threshold", 2.0),
                 price_deviation_threshold=av_config.get(
                     "price_deviation_threshold", 0.02
                 ),
-                min_confidence=av_config.get(
-                    "min_confidence", 0.7
-                ),
+                min_confidence=av_config.get("min_confidence", 0.7),
             )
 
             logger.info("风险管理插件配置已更新")
@@ -183,9 +156,12 @@ class RiskManagementPlugin(BasePlugin):
             ),
         )
 
-    def update_data_quality(
-        self, metrics: Any
-    ) -> bool:
+    @property
+    def capital_guard(self) -> Optional[Any]:
+        """资金守卫实例（可能为 None）"""
+        return self._capital_guard
+
+    def update_data_quality(self, metrics: Any) -> bool:
         """更新数据质量指标
 
         Args:
@@ -198,31 +174,52 @@ class RiskManagementPlugin(BasePlugin):
             RuntimeError: 插件未加载时
         """
         if self._circuit_breaker is None:
-            raise RuntimeError(
-                "风险管理插件未加载，无法更新数据质量"
-            )
+            raise RuntimeError("风险管理插件未加载，无法更新数据质量")
 
         try:
-            tripped = (
-                self._circuit_breaker.update_data_quality(
-                    metrics
-                )
+            old_status_value = getattr(
+                self._circuit_breaker.status,
+                "value",
+                str(self._circuit_breaker.status),
             )
+            tripped = self._circuit_breaker.update_data_quality(metrics)
+            new_status = self._circuit_breaker.status
+            new_status_value = getattr(new_status, "value", str(new_status))
             self._quality_update_count += 1
             self._last_error = None
 
-            event_name = (
-                "risk_management.circuit_breaker_tripped"
-                if tripped
-                else "risk_management.data_quality_updated"
-            )
-            self.emit_event(
-                event_name,
-                {
-                    "tripped": tripped,
-                    "status": self._circuit_breaker.status.value,
-                },
-            )
+            # 判断实际状态变化
+            if tripped and new_status_value == "TRIPPED":
+                # 熔断触发
+                self.emit_event(
+                    "risk_management.circuit_breaker_tripped",
+                    {
+                        "tripped": True,
+                        "status": new_status_value,
+                    },
+                )
+            elif old_status_value in ("TRIPPED", "RECOVERY") and (
+                new_status_value == "NORMAL"
+            ):
+                # 熔断恢复
+                self.emit_event(
+                    "risk_management.circuit_breaker_recovered",
+                    {
+                        "status": new_status_value,
+                        "timestamp": __import__("datetime")
+                        .datetime.now(__import__("datetime").timezone.utc)
+                        .isoformat(),
+                    },
+                )
+            else:
+                # 常规数据质量更新
+                self.emit_event(
+                    "risk_management.data_quality_updated",
+                    {
+                        "tripped": tripped,
+                        "status": new_status_value,
+                    },
+                )
 
             return tripped
         except Exception as e:
@@ -231,7 +228,7 @@ class RiskManagementPlugin(BasePlugin):
             raise
 
     def is_trading_allowed(self) -> bool:
-        """检查是否允许交易
+        """检查是否允许交易（数据质量 + 资金限制双重检查）
 
         Returns:
             bool: True=允许交易
@@ -240,21 +237,24 @@ class RiskManagementPlugin(BasePlugin):
             RuntimeError: 插件未加载时
         """
         if self._circuit_breaker is None:
-            raise RuntimeError(
-                "风险管理插件未加载，无法检查交易权限"
-            )
+            raise RuntimeError("风险管理插件未加载，无法检查交易权限")
 
-        return self._circuit_breaker.is_trading_allowed()
+        # 数据质量熔断器检查
+        if not self._circuit_breaker.is_trading_allowed():
+            return False
+
+        # 资金守卫检查（日/周亏损、回撤限制）
+        if self._capital_guard is not None:
+            if not self._capital_guard.is_trading_allowed():
+                return False
+
+        return True
 
     def validate_anomaly(
         self,
         anomaly: Any,
-        multi_exchange_data: Optional[
-            Dict[str, pd.DataFrame]
-        ] = None,
-        correlation_data: Optional[
-            Dict[str, Any]
-        ] = None,
+        multi_exchange_data: Optional[Dict[str, pd.DataFrame]] = None,
+        correlation_data: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """验证异常事件
 
@@ -270,17 +270,13 @@ class RiskManagementPlugin(BasePlugin):
             RuntimeError: 插件未加载时
         """
         if self._anomaly_validator is None:
-            raise RuntimeError(
-                "风险管理插件未加载，无法验证异常"
-            )
+            raise RuntimeError("风险管理插件未加载，无法验证异常")
 
         try:
-            result = (
-                self._anomaly_validator.validate_anomaly(
-                    anomaly,
-                    multi_exchange_data,
-                    correlation_data,
-                )
+            result = self._anomaly_validator.validate_anomaly(
+                anomaly,
+                multi_exchange_data,
+                correlation_data,
             )
             self._anomaly_validate_count += 1
             self._last_error = None
@@ -288,9 +284,7 @@ class RiskManagementPlugin(BasePlugin):
             self.emit_event(
                 "risk_management.anomaly_validated",
                 {
-                    "anomaly_id": getattr(
-                        anomaly, "anomaly_id", "unknown"
-                    ),
+                    "anomaly_id": getattr(anomaly, "anomaly_id", "unknown"),
                     "validation_result": getattr(
                         result,
                         "validation_result",
@@ -315,9 +309,7 @@ class RiskManagementPlugin(BasePlugin):
             RuntimeError: 插件未加载时
         """
         if self._circuit_breaker is None:
-            raise RuntimeError(
-                "风险管理插件未加载，无法获取状态报告"
-            )
+            raise RuntimeError("风险管理插件未加载，无法获取状态报告")
 
         return self._circuit_breaker.get_status_report()
 
@@ -337,9 +329,7 @@ class RiskManagementPlugin(BasePlugin):
                 else None
             ),
             "breaker_status": (
-                self._circuit_breaker.status.value
-                if self._circuit_breaker
-                else None
+                self._circuit_breaker.status.value if self._circuit_breaker else None
             ),
         }
 
@@ -351,12 +341,14 @@ class RiskManagementPlugin(BasePlugin):
         """
         if self._circuit_breaker is None:
             return []
-        
+
         status_report = self._circuit_breaker.get_status_report()
         return [
             {
                 "name": "日内亏损熔断",
-                "status": "closed" if self._circuit_breaker.is_trading_allowed() else "open",
+                "status": "closed"
+                if self._circuit_breaker.is_trading_allowed()
+                else "open",
                 "trip_count": status_report.get("trip_count", 0),
                 "last_trip_time": status_report.get("last_trip_time"),
                 "recovery_time": status_report.get("recovery_time"),

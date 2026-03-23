@@ -182,7 +182,9 @@ class TRDetector:
 
         # 使用曲线边界拟合器检测TR边界
         tr_result = self.boundary_fitter.detect_trading_range(
-            df["high"], df["low"], df["close"]
+            df["high"],  # pyright: ignore[reportArgumentType]
+            df["low"],  # pyright: ignore[reportArgumentType]
+            df["close"],  # pyright: ignore[reportArgumentType]
         )
 
         if not tr_result:
@@ -217,7 +219,7 @@ class TRDetector:
             time_str = timestamp_dt.strftime("%Y%m%d_%H%M")
         else:
             # 如果是datetime对象，直接格式化
-            time_str = last_timestamp.strftime("%Y%m%d_%H%M")
+            time_str = last_timestamp.strftime("%Y%m%d_%H%M")  # type: ignore[union-attr]
 
         tr_id = f"tr_{self.next_tr_id}_{time_str}"
         self.next_tr_id += 1
@@ -251,7 +253,7 @@ class TRDetector:
             boundary_type=tr_result["upper_boundary"][
                 "boundary_type"
             ],  # 使用上边界类型
-            timestamp=timestamp_dt,
+            timestamp=timestamp_dt,  # type: ignore[arg-type]
             status=status,
             confidence=confidence,
             stability_score=stability_score,
@@ -401,7 +403,7 @@ class TRDetector:
             # 计算TR内波动率（价格变化/ATR）
             recent_prices = df["close"].iloc[-10:]
             price_range = recent_prices.max() - recent_prices.min()
-            atr = self._calculate_atr(df["high"], df["low"], df["close"])
+            atr = self._calculate_atr(df["high"], df["low"], df["close"])  # type: ignore[arg-type]
 
             if atr > 0:
                 volatility_ratio = price_range / atr
@@ -708,7 +710,7 @@ class TRDetector:
             tr3 = abs(low - close.shift(1))
 
             tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-            atr = tr.rolling(window=period).mean().iloc[-1]
+            atr = tr.rolling(window=period).mean().iloc[-1]  # type: ignore[union-attr]
 
             return atr if not np.isnan(atr) else 0.0
         except Exception:
@@ -892,7 +894,6 @@ class TRDetector:
 
 # 简单使用示例
 if __name__ == "__main__":
-
     # 创建模拟数据（盘整市）
     np.random.seed(42)
     n_bars = 100
@@ -969,12 +970,10 @@ if __name__ == "__main__":
         if tr and tr not in detected_trs:
             detected_trs.append(tr)
 
-
     # 获取交易信号
 
     current_price = df["close"].iloc[-1]
     signals = detector.get_tr_signals(current_price)
-
 
     if signals["signals"]:
         for signal in signals["signals"]:
@@ -985,4 +984,3 @@ if __name__ == "__main__":
 
     # 获取统计信息
     stats = detector.get_statistics()
-

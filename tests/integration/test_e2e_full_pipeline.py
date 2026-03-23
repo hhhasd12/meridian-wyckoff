@@ -47,9 +47,9 @@ def loaded_app(tmp_path_factory):
 
     # 清理 position_manager 可能恢复的旧持仓
     pm = wa.plugin_manager.get_plugin("position_manager")
-    if pm is not None and hasattr(pm, "_manager") and pm._manager is not None:
-        for sym in list(pm._manager.positions.keys()):
-            pm._manager.positions.pop(sym)
+    if pm is not None and hasattr(pm, "_manager") and pm._manager is not None:  # type: ignore[attr-defined]
+        for sym in list(pm._manager.positions.keys()):  # type: ignore[attr-defined]
+            pm._manager.positions.pop(sym)  # type: ignore[attr-defined]
 
     yield wa
     wa.plugin_manager.unload_all()
@@ -169,7 +169,7 @@ class TestP1FullPipeline:
             {
                 "symbol": "BTC/USDT",
                 "data_dict": data_dict,
-                "timeframes": ["H4", "H1", "M15"],
+                "timeframes": ["H4", "H1", "M15", "M5"],
             },
         )
 

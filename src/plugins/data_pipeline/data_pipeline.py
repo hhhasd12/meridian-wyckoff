@@ -412,8 +412,16 @@ class DataPipeline:
                 try:
                     avg_gap_td = pd.to_timedelta(time_diffs.mean())
                     max_gap_td = pd.to_timedelta(time_diffs.max())
-                    avg_gap = avg_gap_td.total_seconds() if hasattr(avg_gap_td, 'total_seconds') else float(avg_gap_td) / 1e9
-                    max_gap = max_gap_td.total_seconds() if hasattr(max_gap_td, 'total_seconds') else float(max_gap_td) / 1e9
+                    avg_gap = (
+                        avg_gap_td.total_seconds()
+                        if hasattr(avg_gap_td, "total_seconds")
+                        else float(avg_gap_td) / 1e9  # type: ignore[arg-type]
+                    )
+                    max_gap = (
+                        max_gap_td.total_seconds()
+                        if hasattr(max_gap_td, "total_seconds")
+                        else float(max_gap_td) / 1e9  # type: ignore[arg-type]
+                    )
 
                     metrics["avg_time_gap_seconds"] = avg_gap
                     metrics["max_time_gap_seconds"] = max_gap
@@ -564,14 +572,14 @@ class DataPipeline:
                 if not cached_data.empty:
                     latest_time = cached_data.index.max()
                     try:
-                        age_delta = datetime.now() - latest_time
-                        if hasattr(age_delta, 'total_seconds'):
-                            age = age_delta.total_seconds()
+                        age_delta = datetime.now() - latest_time  # type: ignore[operator]
+                        if hasattr(age_delta, "total_seconds"):
+                            age = age_delta.total_seconds()  # type: ignore[union-attr]
                         else:
                             age = float(age_delta) / 1e9
                     except Exception as e:
                         logger.debug("缓存数据年龄计算失败: %s", e)
-                        age = float('inf')
+                        age = float("inf")
 
                     # 根据时间框架确定最大缓存年龄
                     max_age_map = {
@@ -607,7 +615,6 @@ class DataPipeline:
                 validation_result = self.validate_data_quality(df, request.symbol)
 
                 if not validation_result["is_valid"]:
-
                     # 根据严重程度决定是否继续
                     if len(validation_result["issues"]) > 3:
                         df = pd.DataFrame()

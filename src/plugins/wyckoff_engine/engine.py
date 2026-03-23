@@ -43,9 +43,15 @@ from src.kernel.types import (
     WyckoffSignal,
     WyckoffStateResult,
 )
+
+# TODO: 解耦 — 通过EventBus或接口注入替代直接import
 from src.plugins.market_regime.detector import RegimeDetector
+
+# TODO: 解耦 — 通过EventBus或接口注入替代直接import
 from src.plugins.pattern_detection.curve_boundary import CurveBoundaryFitter
 from src.plugins.pattern_detection.tr_detector import TRDetector
+
+# TODO: 解耦 — 通过EventBus或接口注入替代直接import
 from src.plugins.perception.candle_physical import (
     create_candle_from_dataframe_row,
 )
@@ -55,19 +61,27 @@ from src.plugins.perception.pin_body_analyzer import (
     MarketRegimeType,
     analyze_pin_vs_body,
 )
+
+# TODO: 解耦 — 通过EventBus或接口注入替代直接import
 from src.plugins.risk_management.anomaly_validator import AnomalyValidator
 from src.plugins.risk_management.circuit_breaker import CircuitBreaker
+
+# TODO: 解耦 — 通过EventBus或接口注入替代直接import
 from src.plugins.signal_validation.breakout_validator import BreakoutValidator
 from src.plugins.signal_validation.conflict_resolver import (
     ConflictResolutionManager,
 )
 from src.plugins.signal_validation.micro_entry_validator import MicroEntryValidator
+
+# TODO: 解耦 — 通过EventBus或接口注入替代直接import
 from src.plugins.weight_system.period_weight_filter import (
     PeriodWeightFilter,
     Timeframe,
 )
-from src.plugins.wyckoff_state_machine.state_machine_v2 import (
-    WyckoffStateMachineV2,
+
+# TODO: 解耦 — 通过EventBus或接口注入替代直接import
+from src.plugins.wyckoff_state_machine.state_machine_v4 import (
+    WyckoffStateMachineV4,
 )
 
 logger = logging.getLogger(__name__)
@@ -178,9 +192,9 @@ class WyckoffEngine:
         if sm_dict:
             sm_config.update_from_dict(sm_dict)
         self._sm_config = sm_config
-        self._state_machines: Dict[str, WyckoffStateMachineV2] = {}
+        self._state_machines: Dict[str, WyckoffStateMachineV4] = {}
         for tf in self._timeframes:
-            self._state_machines[tf] = WyckoffStateMachineV2(tf, sm_config)
+            self._state_machines[tf] = WyckoffStateMachineV4(tf, sm_config)
 
         # 引擎状态
         self.last_processed_candle_time: Optional[Any] = None
@@ -196,7 +210,7 @@ class WyckoffEngine:
         self._sm_config = sm_config
         self._state_machines = {}
         for tf in self._timeframes:
-            self._state_machines[tf] = WyckoffStateMachineV2(tf, sm_config)
+            self._state_machines[tf] = WyckoffStateMachineV4(tf, sm_config)
         self.last_processed_candle_time = None
         self.previous_state = None
         self._bar_index = 0
@@ -327,8 +341,14 @@ class WyckoffEngine:
         try:
             candles = []
             for _, row in data.iloc[-10:].iterrows():
+                # 跳过 high==low 的异常 K 线（零振幅 doji）
+                if float(row["high"]) <= float(row["low"]):
+                    continue
                 candle = create_candle_from_dataframe_row(row)
                 candles.append(candle)
+
+            if len(candles) < 3:
+                return None
 
             body_sizes = [c.body for c in candles]
             shadow_sizes = [c.total_shadow for c in candles]
@@ -513,8 +533,8 @@ class WyckoffEngine:
             except Exception as e:
                 logger.warning("K线物理属性统计失败: %s", e)
 
-        except Exception:
-            logger.exception("物理感知层分析整体失败")
+        except Exception as e:
+            logger.exception("物理感知层分析整体失败: %s", e)
 
         result = PerceptionResult(
             market_regime=market_regime,
@@ -547,8 +567,8 @@ class WyckoffEngine:
                         "resistance": tf_tr.upper_boundary,
                         "confidence": tf_tr.confidence,
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("TR 数据提取失败: %s", e)
 
         if not tr_by_timeframe or trading_range is None:
             return
@@ -612,6 +632,9 @@ class WyckoffEngine:
         tr_resistance = trading_range.resistance if trading_range else None
 
         for _, row in recent_candles.iterrows():
+            # 跳过 high==low 的异常 K 线
+            if float(row["high"]) <= float(row["low"]):
+                continue
             candle = create_candle_from_dataframe_row(row)
             context = AnalysisContext(
                 volatility_index=stats.get("volatility_index", 1.0),
@@ -686,7 +709,9 @@ class WyckoffEngine:
         conflicts: List[TimeframeConflict] = []
         resolved_bias = "NEUTRAL"
         try:
-            h4_df = data_dict.get("H4") or data_dict.get(next(iter(data_dict)))
+            h4_df = data_dict.get("H4")
+            if h4_df is None:
+                h4_df = data_dict.get(next(iter(data_dict)))
             correction_depth = 0.0
             volume_on_correction = "NORMAL"
             if h4_df is not None and len(h4_df) >= 10:
@@ -776,7 +801,8 @@ class WyckoffEngine:
                 return "BEARISH", min(0.9, 0.5 + gap * 10)
             else:
                 return "NEUTRAL", 0.4
-        except Exception:
+        except Exception as e:
+            logger.debug("趋势偏差计算失败: %s", e)
             return "NEUTRAL", 0.4
 
     def _validate_micro_entry(
@@ -844,10 +870,10 @@ class WyckoffEngine:
     # 阶段3：状态机决策
     # ================================================================
 
-    def _ensure_state_machine(self, tf: str) -> WyckoffStateMachineV2:
+    def _ensure_state_machine(self, tf: str) -> WyckoffStateMachineV4:
         """确保指定TF的状态机实例存在"""
         if tf not in self._state_machines:
-            self._state_machines[tf] = WyckoffStateMachineV2(tf, self._sm_config)
+            self._state_machines[tf] = WyckoffStateMachineV4(tf, self._sm_config)
         return self._state_machines[tf]
 
     def _run_state_machine(
@@ -900,7 +926,15 @@ class WyckoffEngine:
             try:
                 sm = self._ensure_state_machine(tf)
                 last_candle = df.iloc[-1]
-                tf_result = sm.process_candle(last_candle, sm_context)
+                # V4 接收 dict 而非 pd.Series
+                candle_dict = {
+                    "open": float(last_candle["open"]),
+                    "high": float(last_candle["high"]),
+                    "low": float(last_candle["low"]),
+                    "close": float(last_candle["close"]),
+                    "volume": float(last_candle["volume"]),
+                }
+                tf_result = sm.process_candle(candle_dict, sm_context)
 
                 if tf == primary_tf:
                     primary_result = tf_result
@@ -1018,7 +1052,6 @@ class WyckoffEngine:
                     if (
                         "BEARISH" in market_regime.upper()
                         or "DOWN" in market_regime.upper()
-                        or state.direction == StateDirection.DISTRIBUTION
                     ):
                         short_conf = min(0.9, state.confidence * 1.2)
                         if signal not in [
@@ -1099,30 +1132,78 @@ class WyckoffEngine:
         """
         self._bar_index += 1
 
+        # --- 阶段1：感知层（独立降级） ---
         try:
-            # 四阶段流水线
             perception, _ = self._run_perception(symbol, data_dict)
-            fusion = self._run_fusion(data_dict, perception)
-            state = self._run_state_machine(data_dict, perception, fusion)
-            decision = self._generate_decision(perception, fusion, state)
+        except Exception as e:
+            logger.error("process_bar 阶段1(_run_perception)失败: %s", e, exc_info=True)
+            perception = _default_perception()
 
-            # 提取最后一根K线的时间戳和价格
+        # --- 阶段2：融合层（独立降级） ---
+        try:
+            fusion = self._run_fusion(data_dict, perception)
+        except Exception as e:
+            logger.error("process_bar 阶段2(_run_fusion)失败: %s", e, exc_info=True)
+            fusion = _default_fusion()
+
+        # --- 阶段3：状态机（独立降级） ---
+        try:
+            state = self._run_state_machine(data_dict, perception, fusion)
+        except Exception as e:
+            logger.error(
+                "process_bar 阶段3(_run_state_machine)失败: %s", e, exc_info=True
+            )
+            state = _default_state_result()
+
+        # --- 阶段4：决策生成（独立降级） ---
+        try:
+            decision = self._generate_decision(perception, fusion, state)
+        except Exception as e:
+            logger.error(
+                "process_bar 阶段4(_generate_decision)失败: %s", e, exc_info=True
+            )
+            default_ctx = DecisionContext(
+                timestamp=datetime.now(timezone.utc),
+                market_regime="UNKNOWN",
+                regime_confidence=0.0,
+                timeframe_weights={"H4": 0.5, "H1": 0.3, "M15": 0.2},
+                detected_conflicts=[],
+            )
+            decision = TradingDecision(
+                signal=TradingSignal.NEUTRAL,
+                confidence=0.0,
+                context=default_ctx,
+                reasoning=["process_bar decision error: graceful degradation"],
+            )
+
+        # 提取最后一根K线的时间戳和价格
+        primary_data = None
+        try:
             primary_tf = self._get_primary_tf(data_dict)
             primary_data = data_dict[primary_tf]
             last_candle = primary_data.iloc[-1] if len(primary_data) > 0 else None
+        except Exception as e:
+            logger.debug("主时间框架数据提取失败: %s", e)
+            last_candle = None
 
-            timestamp = None
-            entry_price = None
-            if last_candle is not None:
-                if hasattr(last_candle, "name"):
-                    ts = last_candle.name
-                    if isinstance(ts, datetime):
-                        timestamp = ts
-                entry_price = float(last_candle["close"])
+        timestamp = None
+        entry_price = None
+        if last_candle is not None:
+            if hasattr(last_candle, "name"):
+                ts = last_candle.name
+                if isinstance(ts, datetime):
+                    timestamp = ts
+            entry_price = float(last_candle["close"])
 
-            # 计算止损（基于ATR）
-            stop_loss = None
-            if entry_price is not None and decision.signal != TradingSignal.NEUTRAL:
+        # 计算止损（基于ATR）
+        stop_loss = None
+        if (
+            entry_price is not None
+            and primary_data is not None
+            and decision.signal != TradingSignal.NEUTRAL
+        ):
+            try:
+                assert primary_data is not None  # 已在条件中检查
                 stats = self._calculate_candle_statistics(primary_data)
                 atr = stats.get("atr14", 0.0)
                 if atr > 0:
@@ -1136,30 +1217,55 @@ class WyckoffEngine:
                         TradingSignal.STRONG_SELL,
                     ):
                         stop_loss = entry_price + 2.0 * atr
+            except Exception as e:
+                logger.debug("止损计算失败: %s", e)
 
-            return BarSignal(
-                bar_index=self._bar_index,
-                timestamp=timestamp,
-                signal=decision.signal,
-                confidence=decision.confidence,
-                wyckoff_state=state.current_state,
-                phase=state.phase,
-                evidences=state.evidences,
-                entry_price=entry_price,
-                stop_loss=stop_loss,
-            )
-
-        except Exception as e:
-            logger.exception("process_bar失败: %s", e)
-            return BarSignal(
-                bar_index=self._bar_index,
-                timestamp=None,
-                signal=TradingSignal.NEUTRAL,
-                confidence=0.0,
-                wyckoff_state="IDLE",
-                phase="IDLE",
-                evidences=[],
-            )
+        return BarSignal(
+            bar_index=self._bar_index,
+            timestamp=timestamp,
+            signal=decision.signal,
+            confidence=decision.confidence,
+            wyckoff_state=state.current_state,
+            phase=state.phase,
+            evidences=state.evidences,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            # --- v3.1 状态机可视化扩展 ---
+            tr_support=(
+                float(perception.trading_range.support)
+                if perception.trading_range
+                and perception.trading_range.has_range
+                and perception.trading_range.support is not None
+                else None
+            ),
+            tr_resistance=(
+                float(perception.trading_range.resistance)
+                if perception.trading_range
+                and perception.trading_range.has_range
+                and perception.trading_range.resistance is not None
+                else None
+            ),
+            tr_confidence=(
+                float(perception.trading_range.confidence)
+                if perception.trading_range
+                and perception.trading_range.has_range
+                and perception.trading_range.confidence is not None
+                else None
+            ),
+            market_regime=str(perception.market_regime),
+            direction=state.direction.value
+            if hasattr(state.direction, "value")
+            else str(state.direction),
+            signal_strength=str(state.signal_strength)
+            if state.signal_strength
+            else "none",
+            state_changed=bool(state.state_changed),
+            previous_state=str(state.previous_state) if state.previous_state else None,
+            heritage_score=float(state.heritage_score) if state.heritage_score else 0.0,
+            critical_levels={str(k): float(v) for k, v in state.critical_levels.items()}
+            if state.critical_levels
+            else {},
+        )
 
     # ================================================================
     # 主入口2：完整市场数据处理（实盘用）
@@ -1183,14 +1289,22 @@ class WyckoffEngine:
         """
         all_events = EngineEvents()
 
+        # --- 阶段1：感知层（独立降级） ---
         try:
-            # 阶段1：感知层
             perception, perception_events = self._run_perception(symbol, data_dict)
             if perception_events.tr_detected:
                 all_events.tr_detected = True
                 all_events.tr_data = perception_events.tr_data
+        except Exception as e:
+            logger.error(
+                "process_market_data 阶段1(_run_perception)失败: %s",
+                e,
+                exc_info=True,
+            )
+            perception = _default_perception()
 
-            # 阶段2：融合层
+        # --- 阶段2：融合层（独立降级） ---
+        try:
             fusion = self._run_fusion(data_dict, perception)
             if fusion.conflicts:
                 all_events.conflicts_detected = True
@@ -1201,24 +1315,40 @@ class WyckoffEngine:
                     "lower_bias": fusion.conflicts[0].lower_bias,
                     "resolution": fusion.conflicts[0].resolution,
                 }
+        except Exception as e:
+            logger.error(
+                "process_market_data 阶段2(_run_fusion)失败: %s",
+                e,
+                exc_info=True,
+            )
+            fusion = _default_fusion()
 
-            # 阶段3：状态机决策
+        # --- 阶段3：状态机决策（独立降级） ---
+        try:
             state = self._run_state_machine(data_dict, perception, fusion)
             if state.state_changed:
                 all_events.state_changed = True
                 all_events.old_state = state.previous_state
                 all_events.new_state = state.current_state
+        except Exception as e:
+            logger.error(
+                "process_market_data 阶段3(_run_state_machine)失败: %s",
+                e,
+                exc_info=True,
+            )
+            state = _default_state_result()
 
-            # 阶段4：交易决策
+        # --- 阶段4：交易决策（独立降级） ---
+        try:
             decision = self._generate_decision(perception, fusion, state)
             if decision.confidence < 0.6:
                 all_events.low_confidence_signal = True
-
-            return decision, all_events
-
         except Exception as e:
-            logger.exception("process_market_data整体失败: %s", e)
-            # 优雅降级 — 返回中性决策
+            logger.error(
+                "process_market_data 阶段4(_generate_decision)失败: %s",
+                e,
+                exc_info=True,
+            )
             default_context = DecisionContext(
                 timestamp=datetime.now(timezone.utc),
                 market_regime="UNKNOWN",
@@ -1226,12 +1356,11 @@ class WyckoffEngine:
                 timeframe_weights={"H4": 0.5, "H1": 0.3, "M15": 0.2},
                 detected_conflicts=[],
             )
-            return (
-                TradingDecision(
-                    signal=TradingSignal.NEUTRAL,
-                    confidence=0.0,
-                    context=default_context,
-                    reasoning=["Engine error: graceful degradation"],
-                ),
-                all_events,
+            decision = TradingDecision(
+                signal=TradingSignal.NEUTRAL,
+                confidence=0.0,
+                context=default_context,
+                reasoning=["Engine error: graceful degradation"],
             )
+
+        return decision, all_events

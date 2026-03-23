@@ -12,6 +12,7 @@ from src.kernel.types import (
     OrderStatus,
     OrderType,
 )
+from src.plugins.exchange_connector.rate_limiter import RateLimiter
 from src.plugins.position_manager.types import (
     Position,
     PositionSide,
@@ -39,12 +40,26 @@ class ExchangeExecutor:
         self.leverage = config.get("leverage", 5)
         self.margin_mode = config.get("margin_mode", "isolated")
 
+        # 纸盘交易滑点和手续费参数（参考 bar_by_bar_backtester 模式）
+        self.slippage_rate: float = config.get("slippage_rate", 0.0005)
+        self.commission_rate: float = config.get("commission_rate", 0.001)
+
         self._exchange: Optional[Any] = None
         self._paper_positions: Dict[str, Dict[str, Any]] = {}
         self._paper_balance: float = config.get("initial_balance", 10000.0)
         self._paper_orders: List[Dict[str, Any]] = []
         self._order_count: int = 0
         self._last_error: Optional[str] = None
+
+        # 止损单队列（纸盘模式下维护）
+        self._pending_stop_orders: List[Dict[str, Any]] = []
+
+        # 滑动窗口限频器（防止超过交易所API速率限制）
+        rate_limit_config = config.get("rate_limit", {})
+        self._rate_limiter = RateLimiter(
+            max_requests=rate_limit_config.get("max_requests", 1100),
+            window_seconds=rate_limit_config.get("window_seconds", 60.0),
+        )
 
     def execute(self, request: OrderRequest) -> OrderResult:
         """执行订单 — 主要公共接口
@@ -93,6 +108,8 @@ class ExchangeExecutor:
                 status = OrderStatus.NEW
             elif status_str == "partial":
                 status = OrderStatus.PARTIAL
+            elif status_str == "expired":
+                status = OrderStatus.EXPIRED
             else:
                 status = OrderStatus.FILLED  # 默认视为成交
 
@@ -376,13 +393,42 @@ class ExchangeExecutor:
         size: float,
         price: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """模拟下单"""
+        """模拟下单（含滑点、手续费、止损单、部分成交）"""
         self._order_count += 1
         order_id = f"paper_{self._order_count}"
 
         execution_price = price
         if order_type == "market":
             execution_price = price or self._get_simulated_price(symbol)
+            # 市价单模拟滑点（参考 bar_by_bar_backtester 模式）
+            slippage = execution_price * self.slippage_rate
+            if side == "buy":
+                execution_price += slippage
+            else:
+                execution_price -= slippage
+
+        # 限价单部分成交模拟：50%概率部分成交
+        filled_size = size
+        remaining = 0.0
+        status = "closed"
+        if order_type == "limit":
+            import random
+
+            fill_ratio = random.uniform(0.5, 1.0)
+            filled_size = size * fill_ratio
+            remaining = size - filled_size
+            if remaining > 1e-10:
+                status = "partial"
+                # 记录限价单创建时间用于超时检查
+            else:
+                filled_size = size
+                remaining = 0.0
+
+        # 扣除手续费
+        commission = 0.0
+        if execution_price is not None and filled_size > 0:
+            commission = execution_price * filled_size * self.commission_rate
+            self._paper_balance -= commission
 
         order = {
             "id": order_id,
@@ -391,12 +437,16 @@ class ExchangeExecutor:
             "side": side,
             "amount": size,
             "price": execution_price,
-            "status": "closed",
-            "filled": size,
-            "remaining": 0.0,
+            "status": status,
+            "filled": filled_size,
+            "remaining": remaining,
             "timestamp": datetime.now().isoformat(),
+            "created_at": datetime.now(),
+            "commission": commission,
             "info": {
                 "paper_trading": True,
+                "slippage_rate": self.slippage_rate,
+                "commission": commission,
             },
         }
 
@@ -407,27 +457,39 @@ class ExchangeExecutor:
         else:
             position_side = PositionSide.SHORT
 
-        existing = self._paper_positions.get(symbol)
-        if existing:
-            if existing["side"] != position_side:
-                del self._paper_positions[symbol]
-            else:
-                old_size = existing["size"]
-                if execution_price is not None:
+        # 仅对已成交部分更新持仓
+        if filled_size > 0 and execution_price is not None:
+            existing = self._paper_positions.get(symbol)
+            if existing:
+                if existing["side"] != position_side:
+                    del self._paper_positions[symbol]
+                else:
+                    old_size = existing["size"]
                     existing["avg_price"] = (
-                        existing["avg_price"] * old_size + execution_price * size
-                    ) / (old_size + size)
-                existing["size"] = old_size + size
-        else:
-            self._paper_positions[symbol] = {
-                "symbol": symbol,
-                "side": position_side,
-                "size": size,
-                "avg_price": execution_price,
-                "entry_time": datetime.now(),
-            }
+                        existing["avg_price"] * old_size + execution_price * filled_size
+                    ) / (old_size + filled_size)
+                    existing["size"] = old_size + filled_size
+            else:
+                self._paper_positions[symbol] = {
+                    "symbol": symbol,
+                    "side": position_side,
+                    "size": filled_size,
+                    "avg_price": execution_price,
+                    "entry_time": datetime.now(),
+                }
 
-        logger.info(f"[模拟] 订单已执行: {symbol} {side} {size} @ {execution_price}")
+            # 开仓成功后自动创建止损单
+            if symbol not in self._paper_positions or (
+                self._paper_positions.get(symbol, {}).get("side") == position_side
+            ):
+                self._create_stop_order_from_position(
+                    symbol, position_side, filled_size, execution_price
+                )
+
+        logger.info(
+            f"[模拟] 订单已执行: {symbol} {side} {filled_size:.4f}/{size:.4f}"
+            f" @ {execution_price} (手续费: {commission:.4f})"
+        )
 
         return order
 
@@ -440,9 +502,156 @@ class ExchangeExecutor:
         }
         return base_prices.get(symbol, 100.0)
 
+    def get_market_price(self, symbol: str) -> Optional[float]:
+        """获取当前市场价格
+
+        纸盘模式返回模拟价格，实盘通过 ccxt fetch_ticker 获取。
+
+        Args:
+            symbol: 交易对，如 "BTC/USDT"
+
+        Returns:
+            当前价格，获取失败返回 None
+        """
+        if self.paper_trading:
+            return self._get_simulated_price(symbol)
+
+        if not self._exchange:
+            return None
+
+        try:
+            ticker = self._exchange.fetch_ticker(symbol)
+            return float(ticker.get("last", 0.0) or 0.0) or None
+        except Exception as e:
+            logger.warning("获取 %s 市场价失败: %s", symbol, e)
+            return None
+
     def _get_simulated_position(self, symbol: str) -> Optional[Dict]:
         """获取模拟持仓"""
         return self._paper_positions.get(symbol)
+
+    def _create_stop_order_from_position(
+        self,
+        symbol: str,
+        position_side: PositionSide,
+        size: float,
+        entry_price: float,
+    ) -> None:
+        """开仓后自动创建 STOP_MARKET 止损单
+
+        默认止损距离为入场价的 2%（可通过 config 调整）。
+        LONG 仓位在入场价下方止损，SHORT 仓位在入场价上方止损。
+        """
+        stop_distance = self.config.get("stop_loss_pct", 0.02)
+        if position_side == PositionSide.LONG:
+            stop_price = entry_price * (1 - stop_distance)
+            close_side = "sell"
+        else:
+            stop_price = entry_price * (1 + stop_distance)
+            close_side = "buy"
+
+        self._order_count += 1
+        stop_order = {
+            "id": f"stop_{self._order_count}",
+            "symbol": symbol,
+            "type": "STOP_MARKET",
+            "side": close_side,
+            "amount": size,
+            "stop_price": stop_price,
+            "status": "open",
+            "created_at": datetime.now(),
+            "position_side": position_side,
+            "info": {"paper_trading": True},
+        }
+        self._pending_stop_orders.append(stop_order)
+        logger.info(
+            f"[模拟] 止损单已创建: {symbol} {close_side} {size} @ stop={stop_price:.2f}"
+        )
+
+    def check_stop_orders(
+        self, current_prices: Dict[str, float]
+    ) -> List[Dict[str, Any]]:
+        """检查并触发止损单
+
+        遍历 pending_stop_orders，当市场价格达到止损价时执行平仓。
+        LONG 止损：当前价 <= stop_price 触发
+        SHORT 止损：当前价 >= stop_price 触发
+
+        Args:
+            current_prices: {symbol: current_price} 当前市场价格
+
+        Returns:
+            已触发的止损单列表
+        """
+        triggered = []
+        remaining = []
+
+        for stop in self._pending_stop_orders:
+            symbol = stop["symbol"]
+            current = current_prices.get(symbol)
+            if current is None:
+                remaining.append(stop)
+                continue
+
+            pos_side = stop["position_side"]
+            should_trigger = False
+            if pos_side == PositionSide.LONG and current <= stop["stop_price"]:
+                should_trigger = True
+            elif pos_side == PositionSide.SHORT and current >= stop["stop_price"]:
+                should_trigger = True
+
+            if should_trigger:
+                stop["status"] = "triggered"
+                # 执行止损平仓
+                close_order = self._simulate_order(
+                    symbol=symbol,
+                    side=stop["side"],
+                    order_type="market",
+                    size=stop["amount"],
+                    price=current,
+                )
+                stop["execution_order"] = close_order
+                triggered.append(stop)
+                logger.info(f"[模拟] 止损触发: {symbol} @ {current}")
+            else:
+                remaining.append(stop)
+
+        self._pending_stop_orders = remaining
+        return triggered
+
+    def check_order_timeouts(
+        self, timeout_seconds: float = 30.0
+    ) -> List[Dict[str, Any]]:
+        """检查限价单超时
+
+        部分成交（PARTIAL）的限价单超过 timeout_seconds 后，
+        标记剩余部分为 EXPIRED 并取消。
+
+        Args:
+            timeout_seconds: 超时时间（默认30秒）
+
+        Returns:
+            已超时的订单列表
+        """
+        expired_orders = []
+        now = datetime.now()
+
+        for order in self._paper_orders:
+            if order["status"] != "partial":
+                continue
+            created = order.get("created_at")
+            if created is None:
+                continue
+            elapsed = (now - created).total_seconds()
+            if elapsed >= timeout_seconds:
+                order["status"] = "expired"
+                expired_orders.append(order)
+                logger.info(
+                    f"[模拟] 限价单超时: {order['id']} "
+                    f"已成交 {order['filled']}/{order['amount']}"
+                )
+
+        return expired_orders
 
     def get_statistics(self) -> Dict[str, Any]:
         """获取统计信息"""
@@ -454,6 +663,11 @@ class ExchangeExecutor:
             "open_positions": len(self._paper_positions)
             if self.paper_trading
             else "N/A",
+            "pending_stop_orders": len(self._pending_stop_orders),
+            "paper_balance": self._paper_balance if self.paper_trading else "N/A",
+            "slippage_rate": self.slippage_rate,
+            "commission_rate": self.commission_rate,
+            "rate_limiter_usage": self._rate_limiter.current_usage,
         }
 
     def execute_trade_result(
@@ -478,10 +692,16 @@ class ExchangeExecutor:
 
         if position.side == PositionSide.LONG:
             pnl = (exit_price - position.entry_price) * position.size
-            pnl_pct = (exit_price - position.entry_price) / position.entry_price
+            price_change_pct = (
+                exit_price - position.entry_price
+            ) / position.entry_price
         else:
             pnl = (position.entry_price - exit_price) * position.size
-            pnl_pct = (position.entry_price - exit_price) / position.entry_price
+            price_change_pct = (
+                position.entry_price - exit_price
+            ) / position.entry_price
+        # PnL百分比相对于保证金，需乘以杠杆倍数
+        pnl_pct = price_change_pct * position.leverage
 
         return TradeResult(
             symbol=position.symbol,

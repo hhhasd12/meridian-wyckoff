@@ -37,9 +37,21 @@ class Timeframe(Enum):
     @classmethod
     def from_string(cls, tf_str: str) -> "Timeframe":
         """从字符串转换为Timeframe枚举"""
+        # 别名映射：支持常见的不同写法
+        aliases = {
+            "D1": "D",
+            "1D": "D",
+            "1d": "D",
+            "d1": "D",
+            "W1": "W",
+            "1W": "W",
+            "1w": "W",
+            "w1": "W",
+        }
         tf_str_upper = tf_str.upper()
+        normalized = aliases.get(tf_str_upper, tf_str_upper)
         for tf in cls.get_all():
-            if tf.value == tf_str_upper:
+            if tf.value == normalized:
                 return tf
         raise ValueError(f"未知的时间框架: {tf_str}")
 

@@ -1,5 +1,5 @@
 name: orchestrator
-version: "1.0.0"
+version: "3.0.0"
 description: "系统协调器插件 - 统一调度所有模块，实现完整的交易决策流水线"
 author: "Wyckoff Engine Team"
 entry_point: plugin

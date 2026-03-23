@@ -4,20 +4,18 @@
 
 Usage:
     # 直接使用检测器（无需插件框架）
-    from src.plugins.market_regime import MarketRegime, RegimeDetector
+    from src.plugins.market_regime.detector import MarketRegime, RegimeDetector
 
     # 作为插件使用（通过 PluginManager 加载）
-    from src.plugins.market_regime import MarketRegimePlugin
+    from src.plugins.market_regime.plugin import MarketRegimePlugin
 """
 
 from src.plugins.market_regime.detector import (
     MarketRegime,
     RegimeDetector,
 )
-from src.plugins.market_regime.plugin import MarketRegimePlugin
 
 __all__ = [
     "MarketRegime",
     "RegimeDetector",
-    "MarketRegimePlugin",
 ]

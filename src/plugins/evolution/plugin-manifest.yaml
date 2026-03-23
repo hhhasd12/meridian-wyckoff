@@ -1,5 +1,5 @@
 name: evolution
-version: "1.0.0"
+version: "3.0.0"
 description: "进化系统插件 - 封装进化档案员，管理向量化记忆系统"
 author: "Wyckoff Engine Team"
 entry_point: plugin

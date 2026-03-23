@@ -210,10 +210,7 @@ class EventBus:
             self._pattern_subscriptions = [
                 s
                 for s in self._pattern_subscriptions
-                if not (
-                    s.event_pattern == event_pattern
-                    and s.handler is handler
-                )
+                if not (s.event_pattern == event_pattern and s.handler is handler)
             ]
             removed = len(self._pattern_subscriptions) < before
         else:
@@ -224,9 +221,7 @@ class EventBus:
                     for s in self._exact_subscriptions[event_pattern]
                     if s.handler is not handler
                 ]
-                removed = (
-                    len(self._exact_subscriptions[event_pattern]) < before
-                )
+                removed = len(self._exact_subscriptions[event_pattern]) < before
                 # 清理空列表
                 if not self._exact_subscriptions[event_pattern]:
                     del self._exact_subscriptions[event_pattern]
@@ -309,13 +304,21 @@ class EventBus:
         for sub in handlers:
             try:
                 if sub.is_async:
-                    # 异步处理器在同步 emit 中跳过
-                    logger.warning(
-                        "同步 emit 中跳过异步处理器: "
-                        "event=%s, subscriber=%s",
-                        event_name,
-                        sub.subscriber_name,
-                    )
+                    # 异步处理器：从同步上下文中执行
+                    try:
+                        loop = asyncio.get_running_loop()
+                        # 有运行中的 loop，创建 task 调度执行
+                        # 注意：task 中的异常通过 done_callback 捕获记录
+                        task = loop.create_task(sub.handler(event_name, data))
+                        task.add_done_callback(
+                            lambda t, s=sub: self._handle_async_task_result(
+                                t, event_name, s.subscriber_name, errors
+                            )
+                        )
+                    except RuntimeError:
+                        # 没有运行中的 loop，新建 loop 同步执行
+                        asyncio.run(sub.handler(event_name, data))
+                    success_count += 1
                     continue
                 sub.handler(event_name, data)
                 success_count += 1
@@ -331,9 +334,7 @@ class EventBus:
 
         # 记录事件历史
         if self._enable_history:
-            self._record_event(
-                event_name, data, publisher, len(handlers), errors
-            )
+            self._record_event(event_name, data, publisher, len(handlers), errors)
 
         return success_count
 
@@ -384,9 +385,7 @@ class EventBus:
                 logger.error(error_msg, exc_info=True)
 
         if self._enable_history:
-            self._record_event(
-                event_name, data, publisher, len(handlers), errors
-            )
+            self._record_event(event_name, data, publisher, len(handlers), errors)
 
         return success_count
 
@@ -426,16 +425,11 @@ class EventBus:
         Returns:
             包含订阅数、发布数、错误数等统计信息的字典
         """
-        exact_count = sum(
-            len(subs)
-            for subs in self._exact_subscriptions.values()
-        )
+        exact_count = sum(len(subs) for subs in self._exact_subscriptions.values())
         return {
             "exact_subscriptions": exact_count,
             "pattern_subscriptions": len(self._pattern_subscriptions),
-            "total_subscriptions": (
-                exact_count + len(self._pattern_subscriptions)
-            ),
+            "total_subscriptions": (exact_count + len(self._pattern_subscriptions)),
             "emit_count": self._emit_count,
             "error_count": self._error_count,
             "paused_events": list(self._paused_events),
@@ -443,9 +437,7 @@ class EventBus:
             "history_size": len(self._history),
         }
 
-    def get_history(
-        self, limit: int = 100
-    ) -> List[EventRecord]:
+    def get_history(self, limit: int = 100) -> List[EventRecord]:
         """获取事件历史记录
 
         Args:
@@ -468,6 +460,37 @@ class EventBus:
 
     # ---- 内部方法 ----
 
+    def _handle_async_task_result(
+        self,
+        task: "asyncio.Task[Any]",
+        event_name: str,
+        subscriber_name: str,
+        errors: List[str],
+    ) -> None:
+        """处理异步任务的结果，捕获并记录异常
+
+        当 create_task() 调度的异步处理器完成时调用。
+        如果任务抛出异常，记录错误但不影响其他处理器。
+
+        Args:
+            task: 已完成的异步任务
+            event_name: 事件名称
+            subscriber_name: 订阅者名称
+            errors: 错误列表（用于历史记录）
+        """
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            self._error_count += 1
+            error_msg = (
+                f"异步事件处理器异常: event={event_name}, "
+                f"subscriber={subscriber_name}, "
+                f"error={type(exc).__name__}: {exc}"
+            )
+            errors.append(error_msg)
+            logger.error(error_msg)
+
     def _is_pattern(self, event_pattern: str) -> bool:
         """判断是否为通配符模式
 
@@ -479,9 +502,7 @@ class EventBus:
         """
         return "*" in event_pattern or "?" in event_pattern
 
-    def _get_matching_handlers(
-        self, event_name: str
-    ) -> List[Subscription]:
+    def _get_matching_handlers(self, event_name: str) -> List[Subscription]:
         """获取匹配指定事件名的所有处理器（已按优先级排序）
 
         使用 heapq.merge 合并已排序的精确匹配和通配符匹配列表，
@@ -498,7 +519,8 @@ class EventBus:
 
         # 通配符匹配（_pattern_subscriptions 已按优先级排序）
         pattern_matches = [
-            sub for sub in self._pattern_subscriptions
+            sub
+            for sub in self._pattern_subscriptions
             if fnmatch.fnmatch(event_name, sub.event_pattern)
         ]
 
@@ -508,23 +530,22 @@ class EventBus:
         if not pattern_matches:
             return list(exact)
 
-        return list(heapq.merge(
-            exact, pattern_matches,
-            key=lambda s: s.priority.value,
-        ))
+        return list(
+            heapq.merge(
+                exact,
+                pattern_matches,
+                key=lambda s: s.priority.value,
+            )
+        )
 
     def _sort_exact_subscriptions(self, event_name: str) -> None:
         """对指定事件的精确匹配订阅按优先级排序"""
         if event_name in self._exact_subscriptions:
-            self._exact_subscriptions[event_name].sort(
-                key=lambda s: s.priority.value
-            )
+            self._exact_subscriptions[event_name].sort(key=lambda s: s.priority.value)
 
     def _sort_pattern_subscriptions(self) -> None:
         """对通配符订阅按优先级排序"""
-        self._pattern_subscriptions.sort(
-            key=lambda s: s.priority.value
-        )
+        self._pattern_subscriptions.sort(key=lambda s: s.priority.value)
 
     def _record_event(
         self,
@@ -554,4 +575,4 @@ class EventBus:
 
         # 限制历史记录大小
         if len(self._history) > self._max_history:
-            self._history = self._history[-self._max_history:]
+            self._history = self._history[-self._max_history :]

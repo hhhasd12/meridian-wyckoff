@@ -6,23 +6,23 @@ export default {
     extend: {
       colors: {
         panel: {
-          bg: "#0d1117",
-          surface: "#161b22",
-          border: "#30363d",
-          hover: "#1c2128",
+          bg: "#131722",
+          surface: "#1E222D",
+          border: "#2A2E39",
+          hover: "#364156",
         },
         accent: {
-          green: "#3fb950",
-          red: "#f85149",
-          yellow: "#d29922",
-          blue: "#58a6ff",
-          purple: "#bc8cff",
-          cyan: "#39d2c0",
+          green: "#26A69A",
+          red: "#EF5350",
+          yellow: "#FCD535",
+          blue: "#5B9CF6",
+          purple: "#B98EFF",
+          cyan: "#36D9C4",
         },
         text: {
-          primary: "#e6edf3",
-          secondary: "#8b949e",
-          muted: "#484f58",
+          primary: "#D1D4DC",
+          secondary: "#787B86",
+          muted: "#474D57",
         },
       },
       fontFamily: {
@@ -33,6 +33,26 @@ export default {
           "Monaco",
           "monospace",
         ],
+      },
+      animation: {
+        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "fade-in": "fadeIn 0.3s ease-out",
+        "slide-in": "slideIn 0.2s ease-out",
+        "slide-right": "slideRight 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+      },
+      keyframes: {
+        fadeIn: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        slideIn: {
+          "0%": { opacity: "0", transform: "translateX(-8px)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+        slideRight: {
+          "0%": { opacity: "0", transform: "translateX(100%)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
       },
     },
   },

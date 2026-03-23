@@ -1,15 +1,21 @@
-import type { TradeRecord } from "../types/api";
-
-// Trades come from system snapshot or WS — for now, placeholder
-const DEMO_TRADES: TradeRecord[] = [];
+import { useEffect } from "react";
+import { fetchTrades } from "../core/api";
+import { useStore } from "../core/store";
 
 export default function TradesTab() {
-  const trades = DEMO_TRADES;
+  const trades = useStore((s) => s.trades);
+  const setTrades = useStore((s) => s.setTrades);
+
+  useEffect(() => {
+    fetchTrades()
+      .then((res) => setTrades(res.trades ?? []))
+      .catch(() => {});
+  }, [setTrades]);
 
   if (trades.length === 0) {
     return (
-      <div className="text-text-muted text-xs italic p-2">
-        No trade history
+      <div className="text-text-muted text-sm italic p-2">
+        暂无交易记录
       </div>
     );
   }
@@ -18,15 +24,15 @@ export default function TradesTab() {
     <table className="data-table">
       <thead>
         <tr>
-          <th>Side</th>
-          <th>Entry</th>
-          <th>Exit</th>
-          <th>Size</th>
-          <th>PnL</th>
-          <th>PnL%</th>
-          <th>Hold</th>
-          <th>Reason</th>
-          <th>State</th>
+          <th>方向</th>
+          <th>入场价</th>
+          <th>出场价</th>
+          <th>仓位</th>
+          <th>盈亏</th>
+          <th>盈亏%</th>
+          <th>持仓</th>
+          <th>原因</th>
+          <th>状态</th>
         </tr>
       </thead>
       <tbody>
@@ -34,22 +40,22 @@ export default function TradesTab() {
           <tr key={i}>
             <td>
               <span
-                className={`badge ${
+                className={`badge text-xs ${
                   t.side === "LONG" ? "badge-green" : "badge-red"
                 }`}
               >
-                {t.side}
+                {t.side === "LONG" ? "做多" : "做空"}
               </span>
             </td>
-            <td>{t.entry_price.toFixed(2)}</td>
-            <td>{t.exit_price.toFixed(2)}</td>
-            <td>{t.size.toFixed(4)}</td>
+            <td>{(t.entry_price ?? 0).toFixed(2)}</td>
+            <td>{(t.exit_price ?? 0).toFixed(2)}</td>
+            <td>{(t.size ?? 0).toFixed(4)}</td>
             <td
               className={
                 t.pnl >= 0 ? "text-accent-green" : "text-accent-red"
               }
             >
-              {t.pnl.toFixed(2)}
+              {(t.pnl ?? 0).toFixed(2)}
             </td>
             <td
               className={
@@ -57,9 +63,9 @@ export default function TradesTab() {
               }
             >
               {t.pnl_pct >= 0 ? "+" : ""}
-              {t.pnl_pct.toFixed(2)}%
+              {(t.pnl_pct ?? 0).toFixed(2)}%
             </td>
-            <td>{t.hold_bars} bars</td>
+            <td>{t.hold_bars} 根K线</td>
             <td className="text-text-secondary">{t.exit_reason}</td>
             <td className="text-text-secondary">{t.entry_state}</td>
           </tr>

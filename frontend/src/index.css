@@ -3,19 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --color-bg: #0d1117;
-  --color-surface: #161b22;
-  --color-border: #30363d;
-  --color-hover: #1c2128;
-  --color-green: #3fb950;
-  --color-red: #f85149;
-  --color-yellow: #d29922;
-  --color-blue: #58a6ff;
-  --color-purple: #bc8cff;
-  --color-cyan: #39d2c0;
-  --color-text: #e6edf3;
-  --color-text-secondary: #8b949e;
-  --color-text-muted: #484f58;
+  --color-bg: #131722;
+  --color-surface: #1E222D;
+  --color-border: #2A2E39;
+  --color-hover: #364156;
+  --color-green: #26A69A;
+  --color-red: #EF5350;
+  --color-yellow: #FCD535;
+  --color-blue: #5B9CF6;
+  --color-purple: #B98EFF;
+  --color-cyan: #36D9C4;
+  --color-text: #D1D4DC;
+  --color-text-secondary: #787B86;
+  --color-text-muted: #474D57;
 }
 
 * {
@@ -39,12 +39,14 @@ body {
     "Segoe UI",
     Roboto,
     sans-serif;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -68,19 +70,19 @@ body {
 
   .data-table th {
     @apply text-left text-text-secondary font-medium py-1.5 px-2
-      border-b border-panel-border;
+      border-b border-panel-border text-xs uppercase tracking-widest;
   }
 
   .data-table td {
-    @apply py-1.5 px-2 border-b border-panel-border/50 font-mono text-xs;
+    @apply py-1.5 px-2 border-b border-panel-border/50 font-mono text-sm;
   }
 
   .data-table tr:hover td {
-    @apply bg-panel-hover;
+    @apply bg-panel-hover/30;
   }
 
   .badge {
-    @apply inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium;
+    @apply inline-flex items-center px-1.5 py-0.5 rounded text-sm font-medium;
   }
 
   .badge-green {
@@ -104,11 +106,11 @@ body {
   }
 
   .panel {
-    @apply bg-panel-surface border border-panel-border rounded-lg;
+    @apply bg-panel-surface border border-panel-border rounded;
   }
 
   .panel-header {
     @apply flex items-center justify-between px-3 py-2
-      border-b border-panel-border text-sm font-medium text-text-secondary;
+      border-b border-panel-border text-[13px] font-medium text-text-secondary;
   }
 }

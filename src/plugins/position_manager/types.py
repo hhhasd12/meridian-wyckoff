@@ -52,6 +52,7 @@ class Position:
     entry_signal: TradingSignal
     original_size: float = 0.0  # 原始仓位大小（部分平仓基于此计算）
     entry_atr: float = 0.0  # PM-C3: 入场时ATR，供trailing stop用真实波动率
+    leverage: float = 1.0  # 杠杆倍数（Model A: size已放大，PnL百分比需乘leverage）
     status: PositionStatus = PositionStatus.OPEN
     trailing_stop_activated: bool = False
     partial_profits_taken: List[float] = field(default_factory=list)
@@ -78,10 +79,12 @@ class Position:
     def calculate_unrealized_pnl(self, current_price: float) -> tuple[float, float]:
         if self.side == PositionSide.LONG:
             pnl = (current_price - self.entry_price) * self.size
-            pnl_pct = (current_price - self.entry_price) / self.entry_price
+            price_change_pct = (current_price - self.entry_price) / self.entry_price
         else:
             pnl = (self.entry_price - current_price) * self.size
-            pnl_pct = (self.entry_price - current_price) / self.entry_price
+            price_change_pct = (self.entry_price - current_price) / self.entry_price
+        # PnL百分比相对于保证金，需乘以杠杆倍数
+        pnl_pct = price_change_pct * self.leverage
 
         self.unrealized_pnl = pnl
         self.unrealized_pnl_pct = pnl_pct
@@ -121,6 +124,7 @@ class Position:
             "partial_profits_taken": self.partial_profits_taken,
             "highest_price": self.highest_price,
             "lowest_price": self.lowest_price,
+            "leverage": self.leverage,
             "unrealized_pnl": self.unrealized_pnl,
             "unrealized_pnl_pct": self.unrealized_pnl_pct,
             "risk_reward_ratio": self.get_risk_reward_ratio(),

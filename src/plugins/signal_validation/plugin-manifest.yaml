@@ -1,5 +1,5 @@
 name: signal_validation
-version: "1.0.0"
+version: "3.0.0"
 description: "信号验证插件 - 整合突破验证、微观入场验证和冲突解决"
 author: "Wyckoff Engine Team"
 entry_point: plugin

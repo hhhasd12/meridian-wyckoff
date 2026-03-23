@@ -14,6 +14,7 @@ import pandas as pd
 
 from src.kernel.base_plugin import BasePlugin
 from src.kernel.types import HealthCheckResult, HealthStatus
+from src.plugins.exchange_connector.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +35,9 @@ class ExchangeConnectorPlugin(BasePlugin):
         config = self._config or {}
 
         # 配置参数
-        self._default_exchange: str = config.get(
-            "default_exchange", "binance"
-        )
-        self._request_timeout: int = config.get(
-            "request_timeout", 30
-        )
-        self._enable_rate_limit: bool = config.get(
-            "enable_rate_limit", True
-        )
+        self._default_exchange: str = config.get("default_exchange", "binance")
+        self._request_timeout: int = config.get("request_timeout", 30)
+        self._enable_rate_limit: bool = config.get("enable_rate_limit", True)
         self._max_retries: int = config.get("max_retries", 3)
         self._retry_delay: float = config.get("retry_delay", 1.0)
         self._api_key: str = config.get("api_key", "")
@@ -64,6 +59,13 @@ class ExchangeConnectorPlugin(BasePlugin):
         self._error_count: int = 0
         self._last_error: Optional[str] = None
         self._last_fetch_time: Optional[datetime] = None
+
+        # 滑动窗口限频器
+        rate_limit_cfg = config.get("rate_limit", {})
+        self._rate_limiter = RateLimiter(
+            max_requests=rate_limit_cfg.get("max_requests", 1100),
+            window_seconds=rate_limit_cfg.get("window_seconds", 60.0),
+        )
 
         logger.info(
             "交易所连接器插件已加载, 默认交易所: %s",
@@ -136,9 +138,7 @@ class ExchangeConnectorPlugin(BasePlugin):
             details=details,
         )
 
-    def get_exchange(
-        self, exchange_name: Optional[str] = None
-    ) -> Any:
+    def get_exchange(self, exchange_name: Optional[str] = None) -> Any:
         """获取交易所实例（惰性初始化）
 
         Args:
@@ -157,8 +157,7 @@ class ExchangeConnectorPlugin(BasePlugin):
 
         if name not in self._supported_exchanges:
             raise ValueError(
-                f"不支持的交易所: {name}, "
-                f"支持: {self._supported_exchanges}"
+                f"不支持的交易所: {name}, 支持: {self._supported_exchanges}"
             )
 
         if name not in self._exchanges:
@@ -194,9 +193,7 @@ class ExchangeConnectorPlugin(BasePlugin):
                 logger.info("交易所 %s 连接成功", name)
 
             except AttributeError:
-                raise ValueError(
-                    f"ccxt不支持交易所: {name}"
-                )
+                raise ValueError(f"ccxt不支持交易所: {name}")
             except Exception as e:
                 self._error_count += 1
                 self._last_error = str(e)
@@ -208,15 +205,11 @@ class ExchangeConnectorPlugin(BasePlugin):
                         "operation": "connect",
                     },
                 )
-                raise ConnectionError(
-                    f"无法连接交易所 {name}: {e}"
-                ) from e
+                raise ConnectionError(f"无法连接交易所 {name}: {e}") from e
 
         return self._exchanges[name]
 
-    def disconnect(
-        self, exchange_name: Optional[str] = None
-    ) -> None:
+    def disconnect(self, exchange_name: Optional[str] = None) -> None:
         """断开交易所连接
 
         Args:
@@ -230,9 +223,7 @@ class ExchangeConnectorPlugin(BasePlugin):
                     "exchange.disconnected",
                     {"exchange": exchange_name},
                 )
-                logger.info(
-                    "交易所 %s 已断开", exchange_name
-                )
+                logger.info("交易所 %s 已断开", exchange_name)
         else:
             names = list(self._exchanges.keys())
             self._exchanges.clear()
@@ -283,7 +274,7 @@ class ExchangeConnectorPlugin(BasePlugin):
 
                 df = pd.DataFrame(
                     ohlcv,
-                    columns=[
+                    columns=[  # type: ignore[arg-type]
                         "timestamp",
                         "open",
                         "high",
@@ -293,9 +284,7 @@ class ExchangeConnectorPlugin(BasePlugin):
                     ],
                 )
 
-                df["timestamp"] = pd.to_datetime(
-                    df["timestamp"], unit="ms"
-                )
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
                 df.set_index("timestamp", inplace=True)
                 df.sort_index(inplace=True)
 
@@ -404,9 +393,7 @@ class ExchangeConnectorPlugin(BasePlugin):
                     "symbol": symbol,
                 },
             )
-            raise RuntimeError(
-                f"获取Ticker失败 ({name}/{symbol}): {e}"
-            ) from e
+            raise RuntimeError(f"获取Ticker失败 ({name}/{symbol}): {e}") from e
 
     async def fetch_ohlcv_async(
         self,
@@ -428,12 +415,11 @@ class ExchangeConnectorPlugin(BasePlugin):
         Returns:
             包含OHLCV数据的DataFrame
         """
+        await self._rate_limiter.acquire()
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
-            lambda: self.fetch_ohlcv(
-                symbol, timeframe, since, limit, exchange_name
-            ),
+            lambda: self.fetch_ohlcv(symbol, timeframe, since, limit, exchange_name),
         )
 
     def get_supported_exchanges(self) -> List[str]:
@@ -479,16 +465,13 @@ class ExchangeConnectorPlugin(BasePlugin):
         """
         return {
             "connected_exchanges": len(self._exchanges),
-            "supported_exchanges": len(
-                self._supported_exchanges
-            ),
+            "supported_exchanges": len(self._supported_exchanges),
             "fetch_count": self._fetch_count,
             "error_count": self._error_count,
             "last_error": self._last_error,
             "last_fetch_time": (
-                self._last_fetch_time.isoformat()
-                if self._last_fetch_time
-                else None
+                self._last_fetch_time.isoformat() if self._last_fetch_time else None
             ),
             "default_exchange": self._default_exchange,
+            "rate_limiter_usage": self._rate_limiter.current_usage,
         }

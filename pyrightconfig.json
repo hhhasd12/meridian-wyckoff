@@ -1,0 +1,13 @@
+{
+    "include": ["src", "tests", "examples", "*.py"],
+    "typeCheckingMode": "basic",
+    "pythonVersion": "3.9",
+    "pythonPlatform": "All",
+    "reportMissingImports": "warning",
+    "reportOptionalMemberAccess": "warning",
+    "reportArgumentType": "warning",
+    "reportAssignmentType": "warning",
+    "reportAttributeAccessIssue": "warning",
+    "reportReturnType": "warning",
+    "reportCallIssue": "warning"
+}

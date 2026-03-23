@@ -424,6 +424,7 @@ class TestFullTradingCycle:
             current_price=position.stop_loss - 1,
         )
 
+        assert exit_result is not None
         assert exit_result.should_exit
         assert exit_result.reason == ExitReason.STOP_LOSS
 
@@ -450,11 +451,14 @@ class TestFullTradingCycle:
             df=self.df,
         )
 
+        assert position is not None
+
         exit_result = self.manager.update_position(
             symbol="BTC/USDT",
             current_price=position.take_profit + 1,
         )
 
+        assert exit_result is not None
         assert exit_result.should_exit
         assert exit_result.reason == ExitReason.TAKE_PROFIT
 
@@ -464,6 +468,7 @@ class TestFullTradingCycle:
             reason=ExitReason.TAKE_PROFIT,
         )
 
+        assert trade_result is not None
         assert trade_result.pnl > 0
         assert trade_result.is_profitable
 
@@ -488,6 +493,7 @@ class TestFullTradingCycle:
             signal_confidence=0.75,
         )
 
+        assert exit_result is not None
         assert exit_result.should_exit
         assert exit_result.reason == ExitReason.SIGNAL_REVERSAL
 
@@ -634,6 +640,8 @@ class TestPositionManagerWithExecutor:
             df=self.df,
         )
 
+        assert position is not None
+
         order = self.executor._place_order(
             symbol="BTC/USDT",
             side="buy",
@@ -660,6 +668,8 @@ class TestPositionManagerWithExecutor:
             df=self.df,
         )
 
+        assert position is not None
+
         self.executor._place_order(
             symbol="BTC/USDT",
             side="buy",
@@ -681,5 +691,6 @@ class TestPositionManagerWithExecutor:
             size=position.size,
         )
 
+        assert trade_result is not None
         assert trade_result.pnl > 0
         assert self.executor.get_position("BTC/USDT") is None

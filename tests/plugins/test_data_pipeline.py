@@ -29,15 +29,19 @@ def _make_ohlcv_df(rows: int = 100) -> pd.DataFrame:
     """生成模拟 OHLCV DataFrame"""
     np.random.seed(42)
     close = 100 + np.cumsum(np.random.randn(rows) * 0.5)
+    opens = close - np.random.rand(rows) * 0.3
+    highs = close + np.random.rand(rows) * 0.5
+    lows = close - np.random.rand(rows) * 0.5
+    # 确保 OHLC 有效性: high >= max(open, close), low <= min(open, close)
+    highs = np.maximum(highs, np.maximum(opens, close))
+    lows = np.minimum(lows, np.minimum(opens, close))
     return pd.DataFrame(
         {
-            "open": close - np.random.rand(rows) * 0.3,
-            "high": close + np.random.rand(rows) * 0.5,
-            "low": close - np.random.rand(rows) * 0.5,
+            "open": opens,
+            "high": highs,
+            "low": lows,
             "close": close,
-            "volume": np.random.randint(
-                1000, 10000, rows
-            ),
+            "volume": np.random.randint(1000, 10000, rows),
         }
     )
 
@@ -57,9 +61,7 @@ class TestDataPipelinePluginInit:
 
     def test_custom_name(self) -> None:
         """验证自定义名称"""
-        plugin = DataPipelinePlugin(
-            name="custom_pipeline"
-        )
+        plugin = DataPipelinePlugin(name="custom_pipeline")
         assert plugin.name == "custom_pipeline"
 
     def test_default_config(self) -> None:
@@ -88,30 +90,18 @@ class TestDataPipelinePluginInit:
 class TestDataPipelinePluginLifecycle:
     """测试插件生命周期"""
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_on_load_creates_pipeline(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_on_load_creates_pipeline(self, mock_dp_cls: MagicMock) -> None:
         """on_load 应创建 DataPipeline 实例"""
         mock_dp_cls.return_value = MagicMock()
-        plugin = DataPipelinePlugin(
-            config={"cache_ttl": 1800}
-        )
+        plugin = DataPipelinePlugin(config={"cache_ttl": 1800})
         plugin.on_load()
 
-        mock_dp_cls.assert_called_once_with(
-            config={"cache_ttl": 1800}
-        )
+        mock_dp_cls.assert_called_once_with(config={"cache_ttl": 1800})
         assert plugin.pipeline is not None
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_on_load_resets_counters(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_on_load_resets_counters(self, mock_dp_cls: MagicMock) -> None:
         """on_load 应重置计数器"""
         mock_dp_cls.return_value = MagicMock()
         plugin = DataPipelinePlugin()
@@ -122,12 +112,8 @@ class TestDataPipelinePluginLifecycle:
         assert plugin._fetch_count == 0
         assert plugin._last_error is None
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_on_unload_clears_pipeline(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_on_unload_clears_pipeline(self, mock_dp_cls: MagicMock) -> None:
         """on_unload 应清理 pipeline"""
         mock_dp_cls.return_value = MagicMock()
         plugin = DataPipelinePlugin()
@@ -153,12 +139,8 @@ class TestDataPipelinePluginHealthCheck:
             HealthStatus.UNHEALTHY,
         )
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_health_check_active_healthy(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_health_check_active_healthy(self, mock_dp_cls: MagicMock) -> None:
         """活跃且无错误时应返回 HEALTHY"""
         mock_dp_cls.return_value = MagicMock()
         plugin = DataPipelinePlugin()
@@ -169,12 +151,8 @@ class TestDataPipelinePluginHealthCheck:
         result = plugin.health_check()
         assert result.status == HealthStatus.HEALTHY
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_health_check_with_last_error(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_health_check_with_last_error(self, mock_dp_cls: MagicMock) -> None:
         """有最近错误时应返回 DEGRADED"""
         mock_dp_cls.return_value = MagicMock()
         plugin = DataPipelinePlugin()
@@ -201,17 +179,11 @@ class TestDataPipelinePluginHealthCheck:
 class TestDataPipelinePluginConfigUpdate:
     """测试配置热更新"""
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_config_update_recreates_pipeline(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_config_update_recreates_pipeline(self, mock_dp_cls: MagicMock) -> None:
         """配置更新应重新创建 DataPipeline"""
         mock_dp_cls.return_value = MagicMock()
-        plugin = DataPipelinePlugin(
-            config={"cache_ttl": 1800}
-        )
+        plugin = DataPipelinePlugin(config={"cache_ttl": 1800})
         plugin.on_load()
         assert mock_dp_cls.call_count == 1
 
@@ -240,18 +212,12 @@ class TestDataPipelinePluginFetchData:
         with pytest.raises(RuntimeError, match="未加载"):
             plugin.fetch_data("BTC/USDT")
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_fetch_data_success(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_fetch_data_success(self, mock_dp_cls: MagicMock) -> None:
         """成功获取数据应返回 DataFrame 并发布事件"""
         mock_df = _make_ohlcv_df(50)
         mock_pipeline = MagicMock()
-        mock_pipeline.fetch_data = AsyncMock(
-            return_value=mock_df
-        )
+        mock_pipeline.fetch_data = AsyncMock(return_value=mock_df)
         mock_dp_cls.return_value = mock_pipeline
 
         plugin = DataPipelinePlugin()
@@ -261,9 +227,7 @@ class TestDataPipelinePluginFetchData:
         # mock emit_event
         plugin.emit_event = MagicMock(return_value=1)
 
-        result = plugin.fetch_data(
-            "BTC/USDT", timeframe="1h", limit=50
-        )
+        result = plugin.fetch_data("BTC/USDT", timeframe="1h", limit=50)
 
         assert result is not None
         assert len(result) == 50
@@ -273,20 +237,13 @@ class TestDataPipelinePluginFetchData:
         # 验证事件发布
         plugin.emit_event.assert_called_once()
         call_args = plugin.emit_event.call_args
-        assert (
-            call_args[0][0]
-            == "data_pipeline.ohlcv_ready"
-        )
+        assert call_args[0][0] == "data_pipeline.ohlcv_ready"
         assert call_args[0][1]["symbol"] == "BTC/USDT"
         assert call_args[0][1]["timeframe"] == "1h"
         assert call_args[0][1]["rows"] == 50
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_fetch_data_error_publishes_event(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_fetch_data_error_publishes_event(self, mock_dp_cls: MagicMock) -> None:
         """获取数据失败应发布错误事件"""
         mock_pipeline = MagicMock()
         mock_pipeline.fetch_data = AsyncMock(
@@ -308,23 +265,14 @@ class TestDataPipelinePluginFetchData:
         # 验证错误事件
         plugin.emit_event.assert_called_once()
         call_args = plugin.emit_event.call_args
-        assert (
-            call_args[0][0]
-            == "data_pipeline.source_error"
-        )
+        assert call_args[0][0] == "data_pipeline.source_error"
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_fetch_count_increments(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_fetch_count_increments(self, mock_dp_cls: MagicMock) -> None:
         """多次获取数据应递增计数"""
         mock_df = _make_ohlcv_df(10)
         mock_pipeline = MagicMock()
-        mock_pipeline.fetch_data = AsyncMock(
-            return_value=mock_df
-        )
+        mock_pipeline.fetch_data = AsyncMock(return_value=mock_df)
         mock_dp_cls.return_value = mock_pipeline
 
         plugin = DataPipelinePlugin()
@@ -349,12 +297,8 @@ class TestDataPipelinePluginValidateData:
         with pytest.raises(RuntimeError, match="未加载"):
             plugin.validate_data(df, "BTC/USDT")
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_validate_valid_data(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_validate_valid_data(self, mock_dp_cls: MagicMock) -> None:
         """验证有效数据不应发布告警"""
         mock_pipeline = MagicMock()
         mock_pipeline.validate_data_quality.return_value = {
@@ -375,9 +319,7 @@ class TestDataPipelinePluginValidateData:
         assert result["is_valid"] is True
         plugin.emit_event.assert_not_called()
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
     def test_validate_invalid_data_publishes_alert(
         self, mock_dp_cls: MagicMock
     ) -> None:
@@ -401,10 +343,7 @@ class TestDataPipelinePluginValidateData:
         assert result["is_valid"] is False
         plugin.emit_event.assert_called_once()
         call_args = plugin.emit_event.call_args
-        assert (
-            call_args[0][0]
-            == "data_pipeline.data_quality_alert"
-        )
+        assert call_args[0][0] == "data_pipeline.data_quality_alert"
         assert "missing_data" in call_args[0][1]["issues"]
 
 
@@ -418,12 +357,8 @@ class TestDataPipelinePluginStatistics:
         assert stats["status"] == "not_loaded"
         assert stats["fetch_count"] == 0
 
-    @patch(
-        "src.plugins.data_pipeline.data_pipeline.DataPipeline"
-    )
-    def test_statistics_loaded(
-        self, mock_dp_cls: MagicMock
-    ) -> None:
+    @patch("src.plugins.data_pipeline.data_pipeline.DataPipeline")
+    def test_statistics_loaded(self, mock_dp_cls: MagicMock) -> None:
         """加载后应包含 fetch_count"""
         mock_pipeline = MagicMock()
         mock_pipeline.get_statistics.return_value = {

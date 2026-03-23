@@ -61,7 +61,7 @@ class SRPaneRenderer implements IPrimitivePaneRenderer {
         ctx.setLineDash([]);
         const fontSize = Math.round(10 * scope.verticalPixelRatio);
         ctx.font = `${fontSize}px sans-serif`;
-        const text = `${line.label} ${line.price.toFixed(1)}`;
+        const text = `${line.label} ${(line.price ?? 0).toFixed(1)}`;
         const tm = ctx.measureText(text);
         const pad = 4 * scope.horizontalPixelRatio;
         const lx = 6 * scope.horizontalPixelRatio;

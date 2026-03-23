@@ -44,7 +44,9 @@ class PatternDetectionPlugin(BasePlugin):
     def on_load(self) -> None:
         """加载插件，初始化三个检测器"""
         from src.plugins.pattern_detection.tr_detector import TRDetector
-        from src.plugins.pattern_detection.wyckoff_phase_detector import WyckoffPhaseDetector
+        from src.plugins.pattern_detection.wyckoff_phase_detector import (
+            WyckoffPhaseDetector,
+        )
         from src.plugins.pattern_detection.curve_boundary import CurveBoundaryFitter
 
         config = self._config or {}
@@ -140,9 +142,7 @@ class PatternDetectionPlugin(BasePlugin):
             ),
         )
 
-    def detect_trading_range(
-        self, df: pd.DataFrame
-    ) -> Dict[str, Any]:
+    def detect_trading_range(self, df: pd.DataFrame) -> Dict[str, Any]:
         """检测交易区间
 
         Args:
@@ -200,14 +200,10 @@ class PatternDetectionPlugin(BasePlugin):
             RuntimeError: 插件未加载时
         """
         if self._phase_detector is None:
-            raise RuntimeError(
-                "形态检测插件未加载，无法检测威科夫阶段"
-            )
+            raise RuntimeError("形态检测插件未加载，无法检测威科夫阶段")
 
         try:
-            results = self._phase_detector.detect(
-                candle, context, current_state
-            )
+            results = self._phase_detector.detect(candle, context, current_state)
             self._phase_detect_count += 1
             self._last_error = None
 
@@ -235,9 +231,7 @@ class PatternDetectionPlugin(BasePlugin):
             logger.error("威科夫阶段检测失败: %s", e)
             raise
 
-    def fit_boundary(
-        self, df: pd.DataFrame
-    ) -> Dict[str, Any]:
+    def fit_boundary(self, df: pd.DataFrame) -> Dict[str, Any]:
         """拟合曲线边界
 
         Args:
@@ -250,24 +244,16 @@ class PatternDetectionPlugin(BasePlugin):
             RuntimeError: 插件未加载时
         """
         if self._boundary_fitter is None:
-            raise RuntimeError(
-                "形态检测插件未加载，无法拟合边界"
-            )
+            raise RuntimeError("形态检测插件未加载，无法拟合边界")
 
         try:
             # 检测枢轴点
-            pivots = self._boundary_fitter.detect_pivot_points(
-                df["close"]
-            )
+            pivots = self._boundary_fitter.detect_pivot_points(df["close"])
 
             result = {
                 "pivots": pivots,
-                "boundary_history": (
-                    self._boundary_fitter.get_boundary_history()
-                ),
-                "current_boundary": (
-                    self._boundary_fitter.get_current_boundary()
-                ),
+                "boundary_history": (self._boundary_fitter.get_boundary_history()),
+                "current_boundary": (self._boundary_fitter.get_current_boundary()),
             }
 
             self._boundary_fit_count += 1
@@ -287,9 +273,7 @@ class PatternDetectionPlugin(BasePlugin):
             logger.error("曲线边界拟合失败: %s", e)
             raise
 
-    def get_tr_signals(
-        self, current_price: float
-    ) -> Dict[str, Any]:
+    def get_tr_signals(self, current_price: float) -> Dict[str, Any]:
         """获取TR信号
 
         Args:
@@ -302,14 +286,10 @@ class PatternDetectionPlugin(BasePlugin):
             RuntimeError: 插件未加载时
         """
         if self._tr_detector is None:
-            raise RuntimeError(
-                "形态检测插件未加载，无法获取TR信号"
-            )
+            raise RuntimeError("形态检测插件未加载，无法获取TR信号")
 
         try:
-            signals = self._tr_detector.get_tr_signals(
-                current_price
-            )
+            signals = self._tr_detector.get_tr_signals(current_price)
             self._last_error = None
 
             self.emit_event(
@@ -338,10 +318,9 @@ class PatternDetectionPlugin(BasePlugin):
 
         if self._tr_detector is not None:
             try:
-                stats["tr_statistics"] = (
-                    self._tr_detector.get_statistics()
-                )
-            except Exception:
+                stats["tr_statistics"] = self._tr_detector.get_statistics()
+            except Exception as e:
+                logger.debug("TR 统计获取失败: %s", e)
                 stats["tr_statistics"] = {}
 
         return stats

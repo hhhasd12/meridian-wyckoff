@@ -1,5 +1,5 @@
 name: exchange_connector
-version: "1.0.0"
+version: "3.0.0"
 description: "交易所连接器插件 - 管理加密货币交易所连接（ccxt）"
 author: "Wyckoff Engine Team"
 entry_point: plugin

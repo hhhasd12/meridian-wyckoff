@@ -28,6 +28,9 @@ def _make_ohlcv(n: int = 100, seed: int = 42) -> pd.DataFrame:
     low = close - np.random.rand(n) * 2
     open_price = np.roll(close, 1) + np.random.randn(n) * 0.1
     volume = np.random.rand(n) * 1000 + 500
+    # 确保 OHLC 有效性: high >= max(open, close), low <= min(open, close)
+    high = np.maximum(high, np.maximum(open_price, close))
+    low = np.minimum(low, np.minimum(open_price, close))
 
     return pd.DataFrame(
         {
@@ -131,9 +134,7 @@ class TestMarketRegimePlugin:
         """测试插件加载"""
         self.plugin.on_load()
         assert self.plugin.detector is not None
-        assert isinstance(
-            self.plugin.detector, RegimeDetector
-        )
+        assert isinstance(self.plugin.detector, RegimeDetector)
 
     def test_on_unload(self) -> None:
         """测试插件卸载"""
@@ -161,16 +162,10 @@ class TestMarketRegimePlugin:
         """测试检测后发布事件"""
         received_events: list = []
 
-        def handler(
-            event_name: str, data: dict
-        ) -> None:
-            received_events.append(
-                (event_name, data)
-            )
+        def handler(event_name: str, data: dict) -> None:
+            received_events.append((event_name, data))
 
-        self.event_bus.subscribe(
-            "market_regime.detected", handler
-        )
+        self.event_bus.subscribe("market_regime.detected", handler)
 
         self.plugin.on_load()
         df = _make_ohlcv(100)
@@ -186,14 +181,10 @@ class TestMarketRegimePlugin:
         """测试体制变化事件"""
         change_events: list = []
 
-        def handler(
-            event_name: str, data: dict
-        ) -> None:
+        def handler(event_name: str, data: dict) -> None:
             change_events.append(data)
 
-        self.event_bus.subscribe(
-            "market_regime.changed", handler
-        )
+        self.event_bus.subscribe("market_regime.changed", handler)
 
         self.plugin.on_load()
 
@@ -214,14 +205,10 @@ class TestMarketRegimePlugin:
         """测试通过事件触发检测"""
         detected_events: list = []
 
-        def handler(
-            event_name: str, data: dict
-        ) -> None:
+        def handler(event_name: str, data: dict) -> None:
             detected_events.append(data)
 
-        self.event_bus.subscribe(
-            "market_regime.detected", handler
-        )
+        self.event_bus.subscribe("market_regime.detected", handler)
 
         self.plugin.on_load()
 
@@ -238,14 +225,10 @@ class TestMarketRegimePlugin:
         """测试缺少 DataFrame 的事件"""
         detected_events: list = []
 
-        def handler(
-            event_name: str, data: dict
-        ) -> None:
+        def handler(event_name: str, data: dict) -> None:
             detected_events.append(data)
 
-        self.event_bus.subscribe(
-            "market_regime.detected", handler
-        )
+        self.event_bus.subscribe("market_regime.detected", handler)
 
         self.plugin.on_load()
 
@@ -269,9 +252,7 @@ class TestMarketRegimePlugin:
 
         assert self.plugin.detector is not None
         assert self.plugin.detector.atr_period == 20
-        assert (
-            self.plugin.detector.trending_threshold == 30.0
-        )
+        assert self.plugin.detector.trending_threshold == 30.0
 
     def test_health_check_healthy(self) -> None:
         """测试健康检查 - 正常状态"""

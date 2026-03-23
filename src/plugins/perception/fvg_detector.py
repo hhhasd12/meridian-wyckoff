@@ -4,13 +4,16 @@ FVG（公允价值缺口）检测模块
 解决FVG与威科夫冲突：TR内部FVG需回补，突破后FVG作为支撑阻力
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 class FVGDirection(Enum):
@@ -164,8 +167,8 @@ class FVGDetector:
             # 确保阈值在合理范围内（0.1% - 2%）
             return max(self.min_gap_size_pct / 100.0, min(avg_volatility, 0.02))
 
-
-        except Exception:
+        except Exception as e:
+            logger.debug("动态阈值计算失败: %s", e)
             return self.threshold_percent / 100.0
 
     def detect_fvg_gaps(
@@ -240,16 +243,19 @@ class FVGDetector:
             volume_confirmation = volume_ratio > self.volume_threshold
 
         # 创建FVG记录
-        timestamp = df.index[-1]
+        raw_ts = df.index[-1]
+        timestamp: datetime = cast(datetime, raw_ts)
 
         # 修复：时间戳可能是int64类型，需要转换为datetime对象
         if isinstance(timestamp, (int, np.integer)):
             # 如果是整数时间戳（Unix毫秒），转换为datetime（使用UTC）
-            timestamp_dt = datetime.fromtimestamp(float(timestamp) / 1000.0, tz=timezone.utc)
+            timestamp_dt = datetime.fromtimestamp(
+                float(timestamp) / 1000.0, tz=timezone.utc
+            )
             time_str = timestamp_dt.strftime("%Y%m%d_%H%M")
         else:
             # 如果是datetime对象，直接格式化
-            time_str = timestamp.strftime("%Y%m%d_%H%M")
+            time_str = timestamp.strftime("%Y%m%d_%H%M")  # type: ignore[union-attr]
 
         if bull_fvg and volume_confirmation:
             fvg_id = f"fvg_{self.next_fvg_id}_{time_str}"
@@ -618,8 +624,7 @@ class FVGDetector:
                             )
                     # 看跌FVG在TR内部：价格可能反弹回补
                     elif (
-                        current_price > fvg.min_price
-                        and current_price < fvg.max_price
+                        current_price > fvg.min_price and current_price < fvg.max_price
                     ):
                         signals["buy_signals"].append(
                             {
@@ -776,7 +781,6 @@ if __name__ == "__main__":
         index=dates,
     )
 
-
     # 创建FVG检测器
     detector = FVGDetector(
         {
@@ -802,7 +806,9 @@ if __name__ == "__main__":
         }
 
         # 检测FVG
-        detected_gaps = detector.detect_fvg_gaps(current_df.tail(5), context, bar_index=i)
+        detected_gaps = detector.detect_fvg_gaps(
+            current_df.tail(5), context, bar_index=i
+        )
 
         if detected_gaps:
             for gap in detected_gaps:
@@ -811,7 +817,7 @@ if __name__ == "__main__":
         # 更新FVG状态（模拟价格变化）
         if i > 20 and all_detected_gaps:
             current_price = df["close"].iloc[i]
-            current_time = df.index[i]
+            current_time: datetime = cast(datetime, df.index[i])
 
             updated_fvgs = detector.update_fvg_status(current_price, current_time, i)
 
@@ -822,11 +828,9 @@ if __name__ == "__main__":
     # 获取统计信息
     stats = detector.get_statistics()
 
-
     # 获取交易信号
     current_price = df["close"].iloc[-1]
     signals = detector.get_fvg_signals(current_price)
-
 
     if signals["buy_signals"]:
         for signal in signals["buy_signals"][:3]:

@@ -553,11 +553,13 @@ class StateConfig:
     Attributes:
         SPRING_FAILURE_BARS: Spring失败判定所需K线数
         STATE_TIMEOUT_BARS: 状态超时判定所需K线数
-        STATE_MIN_CONFIDENCE: 状态最小置信度
+        STATE_MIN_CONFIDENCE: 状态最小置信度（假设产生门槛）
         PATH_MAX_AGE_BARS: 路径最大年龄（K线数）
         PATH_SELECTION_THRESHOLD: 路径选择阈值
         STATE_SWITCH_HYSTERESIS: 状态切换滞后性
         DIRECTION_SWITCH_PENALTY: 方向切换惩罚
+        CONFIRMATION_THRESHOLD: V4假设确认所需累积质量
+        MAX_HYPOTHESIS_BARS: V4假设超时K线数上限
     """
 
     def __init__(self) -> None:
@@ -566,13 +568,17 @@ class StateConfig:
         self.STATE_TIMEOUT_BARS = 20
 
         # 非线性检测参数
-        self.STATE_MIN_CONFIDENCE = 0.35
+        self.STATE_MIN_CONFIDENCE = 0.25
         self.PATH_MAX_AGE_BARS = 10
         self.PATH_SELECTION_THRESHOLD = 0.35
 
         # 状态切换滞后性参数（防止"精神分裂"）
         self.STATE_SWITCH_HYSTERESIS = 0.05
         self.DIRECTION_SWITCH_PENALTY = 0.3
+
+        # V4 状态机参数
+        self.CONFIRMATION_THRESHOLD = 0.8  # 假设确认所需累积质量
+        self.MAX_HYPOTHESIS_BARS = 25  # 假设超时K线数
 
         # 自动进化标识
         self._evolution_params = [
@@ -582,6 +588,8 @@ class StateConfig:
             "PATH_SELECTION_THRESHOLD",
             "STATE_SWITCH_HYSTERESIS",
             "DIRECTION_SWITCH_PENALTY",
+            "CONFIRMATION_THRESHOLD",
+            "MAX_HYPOTHESIS_BARS",
         ]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -774,6 +782,40 @@ class BarSignal:
     entry_price: Optional[float] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+    # --- v3.1 状态机可视化扩展 ---
+    tr_support: Optional[float] = None
+    tr_resistance: Optional[float] = None
+    tr_confidence: Optional[float] = None
+    market_regime: str = "UNKNOWN"
+    direction: str = "IDLE"  # StateDirection.value
+    signal_strength: str = "none"  # "strong"|"medium"|"weak"|"none"
+    state_changed: bool = False
+    previous_state: Optional[str] = None
+    heritage_score: float = 0.0
+    critical_levels: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class BarDetail:
+    """逐bar状态机快照 — 用于状态机可视化
+
+    记录每根K线的威科夫状态机完整判断，包括阶段、状态、
+    置信度、TR边界、市场体制等，供前端渲染叠加层。
+    """
+
+    phase: str  # "A"|"B"|"C"|"D"|"E"|"IDLE"
+    state: str  # "PS"|"SC"|"AR"|"ST"|"SPRING"|...
+    confidence: float  # 0.0~1.0
+    tr_support: Optional[float] = None
+    tr_resistance: Optional[float] = None
+    tr_confidence: Optional[float] = None
+    market_regime: str = "UNKNOWN"
+    direction: str = "IDLE"  # "ACCUMULATION"|"DISTRIBUTION"|"TRENDING"|"IDLE"
+    signal_strength: str = "none"
+    state_changed: bool = False
+    previous_state: Optional[str] = None
+    heritage_score: float = 0.0
+    critical_levels: Dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -808,6 +850,10 @@ class BacktestResult:
     total_trades: int
     avg_hold_bars: float
     config_hash: str  # 配置指纹
+    equity_curve: List[float] = field(default_factory=list)  # 逐bar权益曲线
+    bar_phases: List[str] = field(default_factory=list)  # 逐bar威科夫阶段
+    bar_states: List[str] = field(default_factory=list)  # 逐bar威科夫状态
+    bar_details: List[BarDetail] = field(default_factory=list)  # 逐bar完整状态机快照
 
 
 @dataclass
@@ -850,6 +896,7 @@ class OrderType(Enum):
 
     MARKET = "market"
     LIMIT = "limit"
+    STOP_MARKET = "STOP_MARKET"
 
 
 class OrderStatus(Enum):
@@ -861,6 +908,7 @@ class OrderStatus(Enum):
     CANCELLED = "cancelled"
     REJECTED = "rejected"
     ERROR = "error"
+    EXPIRED = "expired"
 
 
 @dataclass
@@ -921,6 +969,11 @@ class OrderResult:
     def is_error(self) -> bool:
         """是否执行失败"""
         return self.status in (OrderStatus.ERROR, OrderStatus.REJECTED)
+
+    @property
+    def is_partial(self) -> bool:
+        """是否部分成交"""
+        return self.status == OrderStatus.PARTIAL
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
