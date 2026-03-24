@@ -46,7 +46,7 @@ async function fetchBinanceCandles(
   let lastError: Error | null = null;
   for (const host of hosts) {
     try {
-      const res = await fetch(`${host}${path}`, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(`${host}${path}`, { signal: AbortSignal.timeout(3000) });
       if (!res.ok) continue;
       const raw: (string | number)[][] = await res.json();
       return raw.map((k) => ({
