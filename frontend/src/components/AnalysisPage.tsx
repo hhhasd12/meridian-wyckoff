@@ -658,7 +658,7 @@ export default function AnalysisPage() {
       </div>
 
       {/* Main chart (70%) */}
-      <div className="flex-[7] min-h-0 relative">
+      <div className="flex-[7] min-h-0 relative overflow-hidden">
         <div ref={mainContainerRef} className="w-full h-full" />
         {deletePopover && (
           <div className="absolute z-30 bg-panel-surface border border-panel-border rounded-lg shadow-lg p-2"
@@ -677,7 +677,7 @@ export default function AnalysisPage() {
       </div>
 
       {/* Confidence chart (30%) */}
-      <div className="flex-[3] min-h-0 border-t border-panel-border">
+      <div className="flex-[3] min-h-0 border-t border-panel-border overflow-hidden">
         <div ref={confContainerRef} className="w-full h-full" />
       </div>
 

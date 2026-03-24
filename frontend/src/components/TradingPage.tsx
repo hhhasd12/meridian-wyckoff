@@ -34,7 +34,7 @@ export default function TradingPage() {
         <WyckoffPanel />
 
         {/* Center: Chart + Bottom tabs */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           {/* Chart area (70% height) */}
           <div className="flex-[7] min-h-0">
             <ChartPanel />

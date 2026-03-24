@@ -151,14 +151,15 @@ function App() {
       {/* Sidebar navigation */}
       <Sidebar />
 
-      {/* Page content — use display to keep all pages mounted (avoid remount/re-analysis) */}
-      <div style={{ display: activePage === "trading" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0">
+      {/* Page content — use display to keep all pages mounted (avoid remount/re-analysis).
+          overflow:hidden prevents hidden pages' chart canvases from leaking into visible pages. */}
+      <div style={{ display: activePage === "trading" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <TradingPage />
       </div>
-      <div style={{ display: activePage === "evolution" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0">
+      <div style={{ display: activePage === "evolution" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <EvolutionPage />
       </div>
-      <div style={{ display: activePage === "analysis" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0">
+      <div style={{ display: activePage === "analysis" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <AnalysisPage />
       </div>
     </div>
