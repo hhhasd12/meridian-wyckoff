@@ -151,14 +151,16 @@ function App() {
       {/* Sidebar navigation */}
       <Sidebar />
 
-      {/* Page content */}
-      {activePage === "trading" ? (
+      {/* Page content — use display to keep all pages mounted (avoid remount/re-analysis) */}
+      <div style={{ display: activePage === "trading" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0">
         <TradingPage />
-      ) : activePage === "evolution" ? (
+      </div>
+      <div style={{ display: activePage === "evolution" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0">
         <EvolutionPage />
-      ) : (
+      </div>
+      <div style={{ display: activePage === "analysis" ? "flex" : "none" }} className="flex-1 flex flex-col min-h-0">
         <AnalysisPage />
-      )}
+      </div>
     </div>
   );
 }
