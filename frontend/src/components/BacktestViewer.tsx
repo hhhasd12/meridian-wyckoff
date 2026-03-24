@@ -163,19 +163,25 @@ export function EquityChart({
     container.style.backgroundColor = "#131722";
     chartRef.current = chart;
 
+    let rafId = 0;
     const ro = new ResizeObserver(() => {
       if (disposedRef.current) return;
-      try {
-        chart.resize();
-      } catch {
-        // chart disposed
-      }
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (disposedRef.current) return;
+        try {
+          chart.resize();
+        } catch {
+          // chart disposed
+        }
+      });
     });
     ro.observe(container);
 
     return () => {
       disposedRef.current = true;
       chartRef.current = null;
+      cancelAnimationFrame(rafId);
       ro.disconnect();
       try {
         dispose(container);

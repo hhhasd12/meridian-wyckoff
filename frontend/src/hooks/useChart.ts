@@ -98,20 +98,26 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
 
     chartRef.current = chart;
 
-    // ResizeObserver → chart.resize()
+    // ResizeObserver → chart.resize() with RAF debounce to prevent resize loops
+    let rafId = 0;
     const ro = new ResizeObserver(() => {
       if (disposedRef.current) return;
-      try {
-        chart.resize();
-      } catch {
-        // chart already disposed
-      }
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (disposedRef.current) return;
+        try {
+          chart.resize();
+        } catch {
+          // chart already disposed
+        }
+      });
     });
     ro.observe(container);
 
     return () => {
       disposedRef.current = true;
       chartRef.current = null;
+      cancelAnimationFrame(rafId);
       ro.disconnect();
       try {
         dispose(container);

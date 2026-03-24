@@ -277,14 +277,20 @@ export default function AnalysisPage() {
 
     mainChartRef.current = chart;
 
+    let rafId1 = 0;
     const ro = new ResizeObserver(() => {
-      if (!disposedRef.current) { try { chart.resize(); } catch { /* */ } }
+      if (disposedRef.current) return;
+      cancelAnimationFrame(rafId1);
+      rafId1 = requestAnimationFrame(() => {
+        if (!disposedRef.current) { try { chart.resize(); } catch { /* */ } }
+      });
     });
     ro.observe(container);
 
     return () => {
       disposedRef.current = true;
       mainChartRef.current = null;
+      cancelAnimationFrame(rafId1);
       ro.disconnect();
       try { dispose(container); } catch { /* */ }
     };
@@ -306,13 +312,19 @@ export default function AnalysisPage() {
 
     confChartRef.current = chart;
 
+    let rafId2 = 0;
     const ro = new ResizeObserver(() => {
-      if (!disposedRef.current) { try { chart.resize(); } catch { /* */ } }
+      if (disposedRef.current) return;
+      cancelAnimationFrame(rafId2);
+      rafId2 = requestAnimationFrame(() => {
+        if (!disposedRef.current) { try { chart.resize(); } catch { /* */ } }
+      });
     });
     ro.observe(container);
 
     return () => {
       confChartRef.current = null;
+      cancelAnimationFrame(rafId2);
       ro.disconnect();
       try { dispose(container); } catch { /* */ }
     };

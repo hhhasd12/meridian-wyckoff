@@ -35,8 +35,8 @@ export default function TradingPage() {
 
         {/* Center: Chart + Bottom tabs */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-          {/* Chart area (70% height) */}
-          <div className="flex-[7] min-h-0">
+          {/* Chart area (70% height) — overflow-hidden prevents KLC canvas from expanding parent */}
+          <div className="flex-[7] min-h-0 overflow-hidden">
             <ChartPanel />
           </div>
 
