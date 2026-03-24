@@ -2,15 +2,8 @@
 
 import { useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  createChart,
-  LineSeries,
-  ColorType,
-  type IChartApi,
-  type ISeriesApi,
-  type LineData,
-  type Time,
-} from "lightweight-charts";
+import { init, dispose } from "klinecharts";
+import type { Chart, KLineData } from "klinecharts";
 import { fetchBacktestDetail } from "../core/api";
 import type { BacktestDetail, BacktestTradeRecord } from "../types/api";
 import { TrendingUp, BarChart3, Target, ShieldAlert, Percent, Hash } from "lucide-react";
@@ -77,8 +70,13 @@ export function StatsBar({ detail }: { detail: BacktestDetail }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Equity curve chart (LWC)                                            */
+/* Equity curve chart (KLineChart v10)                                 */
 /* ------------------------------------------------------------------ */
+
+/** Base timestamp for synthetic equity timeline (2024-01-01 00:00 UTC) */
+const EQUITY_BASE_TS = 1704067200000;
+/** 4-hour bar interval in ms */
+const EQUITY_INTERVAL = 4 * 60 * 60 * 1000;
 
 export function EquityChart({
   equityCurve,
@@ -90,15 +88,19 @@ export function EquityChart({
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const chartRef = useRef<Chart | null>(null);
   const disposedRef = useRef(false);
 
-  const lineData: LineData<Time>[] = useMemo(
+  /** Convert equity array → KLineData[] with area-style rendering */
+  const klineData: KLineData[] = useMemo(
     () =>
       equityCurve.map((value, i) => ({
-        time: (i + 1) as unknown as Time,
-        value,
+        timestamp: EQUITY_BASE_TS + i * EQUITY_INTERVAL,
+        open: value,
+        high: value,
+        low: value,
+        close: value,
+        volume: 0,
       })),
     [equityCurve],
   );
@@ -109,53 +111,64 @@ export function EquityChart({
 
     disposedRef.current = false;
 
-    const chart = createChart(container, {
-      layout: {
-        background: { type: ColorType.Solid, color: "#131722" },
-        textColor: "#787B86",
-        fontSize: 11,
+    const chart = init(container, {
+      styles: {
+        grid: {
+          horizontal: { color: "#1c2128" },
+          vertical: { color: "#1c2128" },
+        },
+        candle: {
+          type: "area",
+          area: {
+            lineSize: 2,
+            lineColor: "#26A69A",
+            smooth: true,
+            value: "close",
+            backgroundColor: [
+              { offset: 0, color: "rgba(38,166,154,0.25)" },
+              { offset: 1, color: "rgba(38,166,154,0.01)" },
+            ],
+          },
+          tooltip: {
+            title: { color: "#8b949e" },
+            legend: { color: "#8b949e" },
+          },
+        },
+        xAxis: {
+          axisLine: { color: "#2A2E39" },
+          tickLine: { color: "#2A2E39" },
+          tickText: { color: "#787B86" },
+        },
+        yAxis: {
+          axisLine: { color: "#2A2E39" },
+          tickLine: { color: "#2A2E39" },
+          tickText: { color: "#787B86" },
+        },
+        crosshair: {
+          horizontal: {
+            line: { color: "#30363d" },
+            text: { backgroundColor: "#161b22", color: "#c9d1d9" },
+          },
+          vertical: {
+            line: { color: "#30363d" },
+            text: { backgroundColor: "#161b22", color: "#c9d1d9" },
+          },
+        },
+        separator: { color: "#1c2128" },
       },
-      grid: {
-        vertLines: { color: "#1c2128" },
-        horzLines: { color: "#1c2128" },
-      },
-      crosshair: {
-        vertLine: { color: "#30363d", labelBackgroundColor: "#161b22" },
-        horzLine: { color: "#30363d", labelBackgroundColor: "#161b22" },
-      },
-      rightPriceScale: {
-        borderColor: "#2A2E39",
-      },
-      timeScale: {
-        borderColor: "#2A2E39",
-        visible: true,
-      },
-      handleScroll: { vertTouchDrag: false },
-      height: chartHeight ?? 200,
     });
 
-    const series = chart.addSeries(LineSeries, {
-      color: "#26A69A",
-      lineWidth: 2,
-      priceFormat: {
-        type: "price",
-        precision: 0,
-        minMove: 1,
-      },
-    });
+    if (!chart) return;
 
+    container.style.backgroundColor = "#131722";
     chartRef.current = chart;
-    seriesRef.current = series;
 
-    const ro = new ResizeObserver((entries) => {
+    const ro = new ResizeObserver(() => {
       if (disposedRef.current) return;
-      for (const entry of entries) {
-        const { width } = entry.contentRect;
-        try {
-          chart.applyOptions({ width });
-        } catch {
-          // chart disposed
-        }
+      try {
+        chart.resize();
+      } catch {
+        // chart disposed
       }
     });
     ro.observe(container);
@@ -163,10 +176,9 @@ export function EquityChart({
     return () => {
       disposedRef.current = true;
       chartRef.current = null;
-      seriesRef.current = null;
       ro.disconnect();
       try {
-        chart.remove();
+        dispose(container);
       } catch {
         // already disposed
       }
@@ -174,15 +186,25 @@ export function EquityChart({
   }, [chartHeight]);
 
   useEffect(() => {
-    if (disposedRef.current || !seriesRef.current) return;
-    if (lineData.length === 0) return;
+    if (disposedRef.current) return;
+    const chart = chartRef.current;
+    if (!chart || klineData.length === 0) return;
+
     try {
-      seriesRef.current.setData(lineData);
-      chartRef.current?.timeScale().fitContent();
+      chart.setDataLoader({
+        getBars: (params) => {
+          params.callback(klineData, false);
+        },
+      });
+      chart.setSymbol({
+        ticker: "EQUITY",
+        pricePrecision: 0,
+        volumePrecision: 0,
+      });
     } catch {
       // chart disposed
     }
-  }, [lineData]);
+  }, [klineData]);
 
   return (
     <div className={`rounded bg-panel-surface border border-panel-border overflow-hidden ${className ?? ""}`}>
