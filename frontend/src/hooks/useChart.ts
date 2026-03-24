@@ -89,8 +89,13 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
     // Set dark background via container style (KLC uses canvas bg)
     container.style.backgroundColor = "#0d1117";
 
-    // Overlay VOL on the main candle pane (like TradingView)
-    chart.createIndicator("VOL", true, { id: "candle_pane" });
+    // VOL as independent pane — KLC auto-creates a sub-pane below candles
+    chart.createIndicator("VOL");
+
+    // Force initial resize so KLC distributes panes within container
+    setTimeout(() => {
+      if (!disposedRef.current) chart.resize();
+    }, 0);
 
     chartRef.current = chart;
 
