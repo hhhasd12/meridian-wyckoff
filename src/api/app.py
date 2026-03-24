@@ -30,7 +30,6 @@
 """
 
 import asyncio
-import csv
 import json
 import logging
 import os
@@ -184,32 +183,6 @@ async def get_candles(symbol: str, tf: str, limit: int = 500) -> List[Dict[str, 
     df = getattr(data_pipeline, "get_cached_data")(symbol, tf)
 
     if df is None or (hasattr(df, "empty") and df.empty):
-        # Fallback: read from local CSV files (data/{SYMBOL}_{tf}.csv)
-        tf_map = {"H4": "4h", "H1": "1h", "D1": "1d", "M15": "15m", "M5": "5m"}
-        csv_tf = tf_map.get(tf, tf.lower())
-        csv_symbol = symbol.replace("/", "")
-        csv_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "..",
-            "data",
-            f"{csv_symbol}_{csv_tf}.csv",
-        )
-        if os.path.isfile(csv_path):
-            with open(csv_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                rows = list(reader)
-            rows = rows[-limit:]
-            return [
-                {
-                    "timestamp": row["timestamp"],
-                    "open": float(row["open"]),
-                    "high": float(row["high"]),
-                    "low": float(row["low"]),
-                    "close": float(row["close"]),
-                    "volume": float(row["volume"]),
-                }
-                for row in rows
-            ]
         return []
 
     candles: List[Dict[str, Any]] = []
