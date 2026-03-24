@@ -254,7 +254,11 @@ export default function AnalysisPage() {
     const chart = init(container, { styles: KLC_DARK_STYLES });
     if (!chart) return;
 
-    chart.createIndicator("VOL");
+    chart.createIndicator("VOL", false, {
+      height: 80,
+      minHeight: 60,
+      dragEnabled: true,
+    });
 
     // Create analysis overlays
     chart.createOverlay({ name: "phaseBgOverlay", lock: true, visible: true });

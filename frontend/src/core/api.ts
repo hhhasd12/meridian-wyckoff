@@ -34,20 +34,34 @@ async function fetchBinanceCandles(
   // "BTC/USDT" → "BTCUSDT"
   const binanceSymbol = symbol.replace("/", "");
   const interval = TF_TO_BINANCE[tf] ?? tf.toLowerCase();
-  const url =
-    `https://api.binance.com/api/v3/klines` +
-    `?symbol=${binanceSymbol}&interval=${interval}&limit=${limit}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Binance API failed: ${res.status}`);
-  const raw: (string | number)[][] = await res.json();
-  return raw.map((k) => ({
-    timestamp: new Date(k[0] as number).toISOString(),
-    open: parseFloat(k[1] as string),
-    high: parseFloat(k[2] as string),
-    low: parseFloat(k[3] as string),
-    close: parseFloat(k[4] as string),
-    volume: parseFloat(k[5] as string),
-  }));
+  const path = `/api/v3/klines?symbol=${binanceSymbol}&interval=${interval}&limit=${limit}`;
+
+  // Try multiple Binance endpoints (api.binance.com is blocked in China)
+  const hosts = [
+    "https://data-api.binance.vision",
+    "https://api1.binance.com",
+    "https://api.binance.com",
+  ];
+
+  let lastError: Error | null = null;
+  for (const host of hosts) {
+    try {
+      const res = await fetch(`${host}${path}`, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) continue;
+      const raw: (string | number)[][] = await res.json();
+      return raw.map((k) => ({
+        timestamp: new Date(k[0] as number).toISOString(),
+        open: parseFloat(k[1] as string),
+        high: parseFloat(k[2] as string),
+        low: parseFloat(k[3] as string),
+        close: parseFloat(k[4] as string),
+        volume: parseFloat(k[5] as string),
+      }));
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+  throw lastError ?? new Error("All Binance endpoints failed");
 }
 
 export async function fetchCandles(
