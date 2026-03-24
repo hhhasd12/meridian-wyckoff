@@ -1,4 +1,4 @@
-/** ChartPanel — Main chart container with LWC + Wyckoff overlays */
+/** ChartPanel — Main chart container with KLineChart + Wyckoff overlays */
 
 import { useRef } from "react";
 import { useChart } from "../hooks/useChart";
@@ -9,7 +9,7 @@ export default function ChartPanel() {
   const { getRefs } = useChart(containerRef);
   const refs = getRefs();
 
-  useOverlays(refs.chart, refs.candleSeries);
+  useOverlays(refs.chart);
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

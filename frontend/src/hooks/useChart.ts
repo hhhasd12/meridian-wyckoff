@@ -1,49 +1,29 @@
-/** useChart — LWC initialization + real-time candle updates */
+/** useChart — KLineChart v10 initialization + real-time candle updates */
 
 import { useEffect, useRef, useCallback } from "react";
-import {
-  createChart,
-  CandlestickSeries,
-  HistogramSeries,
-  type IChartApi,
-  type ISeriesApi,
-  type CandlestickData,
-  type HistogramData,
-  type Time,
-  ColorType,
-} from "lightweight-charts";
+import { init, dispose } from "klinecharts";
+import type { Chart, KLineData } from "klinecharts";
 import { useStore } from "../core/store";
 import type { Candle } from "../types/api";
 
-function toChartCandle(c: Candle): CandlestickData<Time> {
+/** Convert our Candle (ISO timestamp string) → KLineChart KLineData (ms) */
+function toKLineData(c: Candle): KLineData {
   return {
-    time: (new Date(c.timestamp).getTime() / 1000) as unknown as Time,
+    timestamp: new Date(c.timestamp).getTime(),
     open: c.open,
     high: c.high,
     low: c.low,
     close: c.close,
-  };
-}
-
-function toVolumeBar(c: Candle): HistogramData<Time> {
-  return {
-    time: (new Date(c.timestamp).getTime() / 1000) as unknown as Time,
-    value: c.volume,
-    color: c.close >= c.open ? "rgba(63,185,80,0.4)" : "rgba(248,81,73,0.4)",
+    volume: c.volume,
   };
 }
 
 export interface ChartRefs {
-  chart: IChartApi | null;
-  candleSeries: ISeriesApi<"Candlestick"> | null;
-  volumeSeries: ISeriesApi<"Histogram"> | null;
+  chart: Chart | null;
 }
 
 export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
-  const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  // Disposed flag — prevents any access to LWC objects after chart.remove()
+  const chartRef = useRef<Chart | null>(null);
   const disposedRef = useRef(false);
   const candles = useStore((s) => s.candles);
 
@@ -54,111 +34,124 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
 
     disposedRef.current = false;
 
-    const chart = createChart(container, {
-      layout: {
-        background: { type: ColorType.Solid, color: "#0d1117" },
-        textColor: "#8b949e",
-        fontSize: 12,
+    const chart = init(container, {
+      styles: {
+        grid: {
+          horizontal: { color: "#1c2128" },
+          vertical: { color: "#1c2128" },
+        },
+        candle: {
+          bar: {
+            upColor: "#3fb950",
+            downColor: "#f85149",
+            upBorderColor: "#3fb950",
+            downBorderColor: "#f85149",
+            upWickColor: "#3fb950",
+            downWickColor: "#f85149",
+          },
+          tooltip: {
+            title: { color: "#8b949e" },
+            legend: { color: "#8b949e" },
+          },
+        },
+        indicator: {
+          tooltip: {
+            title: { color: "#8b949e" },
+            legend: { color: "#8b949e" },
+          },
+        },
+        xAxis: {
+          axisLine: { color: "#30363d" },
+          tickLine: { color: "#30363d" },
+          tickText: { color: "#8b949e" },
+        },
+        yAxis: {
+          axisLine: { color: "#30363d" },
+          tickLine: { color: "#30363d" },
+          tickText: { color: "#8b949e" },
+        },
+        crosshair: {
+          horizontal: {
+            line: { color: "#30363d" },
+            text: { backgroundColor: "#161b22", color: "#c9d1d9" },
+          },
+          vertical: {
+            line: { color: "#30363d" },
+            text: { backgroundColor: "#161b22", color: "#c9d1d9" },
+          },
+        },
+        separator: { color: "#1c2128" },
       },
-      grid: {
-        vertLines: { color: "#1c2128" },
-        horzLines: { color: "#1c2128" },
-      },
-      crosshair: {
-        vertLine: { color: "#30363d", labelBackgroundColor: "#161b22" },
-        horzLine: { color: "#30363d", labelBackgroundColor: "#161b22" },
-      },
-      rightPriceScale: {
-        borderColor: "#30363d",
-        scaleMargins: { top: 0.1, bottom: 0.25 },
-      },
-      timeScale: {
-        borderColor: "#30363d",
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      handleScroll: { vertTouchDrag: false },
     });
 
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#3fb950",
-      downColor: "#f85149",
-      borderUpColor: "#3fb950",
-      borderDownColor: "#f85149",
-      wickUpColor: "#3fb950",
-      wickDownColor: "#f85149",
-    });
+    if (!chart) return;
 
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: "volume" },
-      priceScaleId: "volume",
-    });
+    // Set dark background via container style (KLC uses canvas bg)
+    container.style.backgroundColor = "#0d1117";
 
-    chart.priceScale("volume").applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
+    // Add built-in VOL indicator in main candle pane's sub-pane
+    chart.createIndicator("VOL", false, {
+      id: "candle_pane",
     });
 
     chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
-    volumeSeriesRef.current = volumeSeries;
 
-    // Auto-resize (guard against post-dispose callbacks)
-    const ro = new ResizeObserver((entries) => {
+    // ResizeObserver → chart.resize()
+    const ro = new ResizeObserver(() => {
       if (disposedRef.current) return;
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        try {
-          chart.applyOptions({ width, height });
-        } catch {
-          // chart already disposed
-        }
+      try {
+        chart.resize();
+      } catch {
+        // chart already disposed
       }
     });
     ro.observe(container);
 
     return () => {
-      // Mark disposed FIRST — prevents any concurrent access
       disposedRef.current = true;
-      // Clear refs BEFORE remove — other useEffects check refs
       chartRef.current = null;
-      candleSeriesRef.current = null;
-      volumeSeriesRef.current = null;
-      // Then clean up
       ro.disconnect();
       try {
-        chart.remove();
+        dispose(container);
       } catch {
-        // already disposed (e.g., StrictMode double-cleanup)
+        // already disposed
       }
     };
   }, [containerRef]);
 
-  // Update data when candles change
+  // Update data when candles change — use setDataLoader with getBars
   useEffect(() => {
     if (disposedRef.current) return;
-    if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
-    if (candles.length === 0) return;
+    const chart = chartRef.current;
+    if (!chart || candles.length === 0) return;
 
-    const chartData = candles.map(toChartCandle);
-    const volumeData = candles.map(toVolumeBar);
+    const klineData = candles.map(toKLineData);
 
     try {
-      candleSeriesRef.current.setData(chartData);
-      volumeSeriesRef.current.setData(volumeData);
+      // setDataLoader provides data to the chart via callback
+      chart.setDataLoader({
+        getBars: (params) => {
+          // On 'init' or 'forward', provide all our data
+          params.callback(klineData, false);
+        },
+      });
+
+      // Set symbol info to trigger data loading
+      chart.setSymbol({
+        ticker: "BTC/USDT",
+        pricePrecision: 2,
+        volumePrecision: 4,
+      });
     } catch {
-      // chart disposed between check and setData
+      // chart disposed between check and setDataLoader
     }
   }, [candles]);
 
   const getRefs = useCallback((): ChartRefs => {
     if (disposedRef.current) {
-      return { chart: null, candleSeries: null, volumeSeries: null };
+      return { chart: null };
     }
-    return {
-      chart: chartRef.current,
-      candleSeries: candleSeriesRef.current,
-      volumeSeries: volumeSeriesRef.current,
-    };
+    return { chart: chartRef.current };
   }, []);
 
   return { getRefs };

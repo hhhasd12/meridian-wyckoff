@@ -1,85 +1,145 @@
-/** useOverlays — Manages LWC Wyckoff overlay primitives lifecycle */
+/** useOverlays — KLineChart v10 custom overlay registration + lifecycle */
 
 import { useEffect, useRef } from "react";
-import type { IChartApi, ISeriesApi } from "lightweight-charts";
+import { registerOverlay } from "klinecharts";
+import type { Chart } from "klinecharts";
 import { useStore } from "../core/store";
-import { WyckoffPhaseBg } from "../chart-plugins/WyckoffPhaseBg";
-import { SupportResistance } from "../chart-plugins/SupportResistance";
-import { FvgZones } from "../chart-plugins/FvgZones";
-import { StateMarkers } from "../chart-plugins/StateMarkers";
 
-export function useOverlays(
-  chart: IChartApi | null,
-  series: ISeriesApi<"Candlestick"> | null,
-) {
+// Track whether overlays have been registered (module-level, once per app)
+let overlaysRegistered = false;
+
+/**
+ * Register 4 custom overlay templates (idempotent).
+ * totalStep: 0 = non-interactive (programmatically placed).
+ * Rendering logic is skeleton — will be fleshed out in Wave 2.
+ */
+function ensureOverlaysRegistered(): void {
+  if (overlaysRegistered) return;
+  overlaysRegistered = true;
+
+  // 1. Wyckoff Phase Background — colored backdrop per phase
+  registerOverlay({
+    name: "wyckoffPhaseBg",
+    totalStep: 0,
+    createPointFigures: () => {
+      // Wave 2: draw colored rect behind candles based on phase
+      return [];
+    },
+  });
+
+  // 2. Support / Resistance lines
+  registerOverlay({
+    name: "supportResistance",
+    totalStep: 0,
+    createPointFigures: () => {
+      // Wave 2: draw horizontal lines at critical_levels
+      return [];
+    },
+  });
+
+  // 3. FVG (Fair Value Gap) zones
+  registerOverlay({
+    name: "fvgZone",
+    totalStep: 0,
+    createPointFigures: () => {
+      // Wave 2: draw semi-transparent rectangles for FVG gaps
+      return [];
+    },
+  });
+
+  // 4. State markers (wyckoff event labels)
+  registerOverlay({
+    name: "stateMarker",
+    totalStep: 0,
+    createPointFigures: () => {
+      // Wave 2: draw text labels / icons at state change points
+      return [];
+    },
+  });
+}
+
+export function useOverlays(chart: Chart | null) {
   const wyckoff = useStore((s) => s.wyckoffState);
-  const disposedRef = useRef(false);
+  const overlayIdsRef = useRef<string[]>([]);
 
-  const phaseBgRef = useRef<WyckoffPhaseBg | null>(null);
-  const srRef = useRef<SupportResistance | null>(null);
-  const fvgRef = useRef<FvgZones | null>(null);
-  const markersRef = useRef<StateMarkers | null>(null);
-
-  // Attach primitives when chart/series are ready
+  // Register overlay templates on first mount
   useEffect(() => {
-    if (!chart || !series) return;
+    ensureOverlaysRegistered();
+  }, []);
 
-    disposedRef.current = false;
+  // Create overlay instances when chart is ready
+  useEffect(() => {
+    if (!chart) return;
 
-    const phaseBg = new WyckoffPhaseBg();
-    const sr = new SupportResistance();
-    const fvg = new FvgZones();
-    const markers = new StateMarkers();
+    // Create the 4 overlay instances
+    const ids: string[] = [];
 
-    let pane: ReturnType<IChartApi["panes"]>[number] | null = null;
+    const bgId = chart.createOverlay({
+      name: "wyckoffPhaseBg",
+      lock: true,
+      visible: true,
+    });
+    if (bgId && typeof bgId === "string") ids.push(bgId);
 
-    try {
-      // Phase background is a pane primitive (draws behind everything)
-      pane = chart.panes()[0] ?? null;
-      if (pane) pane.attachPrimitive(phaseBg);
+    const srId = chart.createOverlay({
+      name: "supportResistance",
+      lock: true,
+      visible: true,
+    });
+    if (srId && typeof srId === "string") ids.push(srId);
 
-      // Others are series primitives
-      series.attachPrimitive(sr);
-      series.attachPrimitive(fvg);
-      series.attachPrimitive(markers);
-    } catch {
-      // chart/series already disposed (StrictMode double-mount race)
-      return;
-    }
+    const fvgId = chart.createOverlay({
+      name: "fvgZone",
+      lock: true,
+      visible: true,
+    });
+    if (fvgId && typeof fvgId === "string") ids.push(fvgId);
 
-    phaseBgRef.current = phaseBg;
-    srRef.current = sr;
-    fvgRef.current = fvg;
-    markersRef.current = markers;
+    const markerId = chart.createOverlay({
+      name: "stateMarker",
+      lock: true,
+      visible: true,
+    });
+    if (markerId && typeof markerId === "string") ids.push(markerId);
+
+    overlayIdsRef.current = ids;
 
     return () => {
-      disposedRef.current = true;
-      // Chart may already be disposed (useChart cleanup runs first)
-      try { if (pane) pane.detachPrimitive(phaseBg); } catch { /* disposed */ }
-      try { series.detachPrimitive(sr); } catch { /* disposed */ }
-      try { series.detachPrimitive(fvg); } catch { /* disposed */ }
-      try { series.detachPrimitive(markers); } catch { /* disposed */ }
-
-      phaseBgRef.current = null;
-      srRef.current = null;
-      fvgRef.current = null;
-      markersRef.current = null;
+      // Clean up overlays
+      try {
+        for (const id of overlayIdsRef.current) {
+          chart.removeOverlay({ id });
+        }
+      } catch {
+        // chart already disposed
+      }
+      overlayIdsRef.current = [];
     };
-  }, [chart, series]);
+  }, [chart]);
 
-  // Update overlays when wyckoff state changes
+  // Update overlay data when wyckoff state changes
   useEffect(() => {
-    if (!wyckoff || disposedRef.current) return;
+    if (!chart || !wyckoff) return;
 
+    // Wave 2: pass data to overlays via overrideOverlay extendData
     try {
-      phaseBgRef.current?.setPhase(wyckoff.phase ?? "IDLE");
-      srRef.current?.setLevels(wyckoff.critical_levels ?? {});
-      markersRef.current?.setState(
-        wyckoff.current_state ?? "",
-        wyckoff.phase ?? "IDLE",
-      );
+      chart.overrideOverlay({
+        name: "wyckoffPhaseBg",
+        extendData: { phase: wyckoff.phase ?? "IDLE" },
+      });
+      chart.overrideOverlay({
+        name: "supportResistance",
+        extendData: { levels: wyckoff.critical_levels ?? {} },
+      });
+      chart.overrideOverlay({
+        name: "stateMarker",
+        extendData: {
+          state: wyckoff.current_state ?? "",
+          phase: wyckoff.phase ?? "IDLE",
+        },
+      });
     } catch {
       // chart disposed
     }
-  }, [wyckoff]);
+  }, [chart, wyckoff]);
 }
