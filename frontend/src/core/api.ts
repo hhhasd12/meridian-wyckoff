@@ -16,18 +16,59 @@ import type {
 
 const BASE_URL = "";
 
+// Timeframe mapping: backend format → Binance interval
+const TF_TO_BINANCE: Record<string, string> = {
+  D1: "1d",
+  H4: "4h",
+  H1: "1h",
+  M15: "15m",
+  M5: "5m",
+};
+
+/** Fetch from Binance public klines API (no auth needed) */
+async function fetchBinanceCandles(
+  symbol: string,
+  tf: string,
+  limit: number,
+): Promise<Candle[]> {
+  // "BTC/USDT" → "BTCUSDT"
+  const binanceSymbol = symbol.replace("/", "");
+  const interval = TF_TO_BINANCE[tf] ?? tf.toLowerCase();
+  const url =
+    `https://api.binance.com/api/v3/klines` +
+    `?symbol=${binanceSymbol}&interval=${interval}&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Binance API failed: ${res.status}`);
+  const raw: (string | number)[][] = await res.json();
+  return raw.map((k) => ({
+    timestamp: new Date(k[0] as number).toISOString(),
+    open: parseFloat(k[1] as string),
+    high: parseFloat(k[2] as string),
+    low: parseFloat(k[3] as string),
+    close: parseFloat(k[4] as string),
+    volume: parseFloat(k[5] as string),
+  }));
+}
+
 export async function fetchCandles(
   symbol: string,
   tf: string,
   limit = 500,
 ): Promise<Candle[]> {
-  // symbol 含 "/" (如 "BTC/USDT")，后端路由用 {symbol:path} 匹配，
-  // 不能 encodeURIComponent 否则 "/" 被转义为 %2F 导致 404
-  const res = await fetch(
-    `${BASE_URL}/api/candles/${symbol}/${tf}?limit=${limit}`,
-  );
-  if (!res.ok) throw new Error(`fetchCandles failed: ${res.status}`);
-  return res.json() as Promise<Candle[]>;
+  // 1. Try backend first
+  try {
+    const res = await fetch(
+      `${BASE_URL}/api/candles/${symbol}/${tf}?limit=${limit}`,
+    );
+    if (res.ok) {
+      const data: Candle[] = await res.json();
+      if (data.length > 0) return data;
+    }
+  } catch {
+    // backend unreachable — fall through to Binance
+  }
+  // 2. Fallback: Binance public API
+  return fetchBinanceCandles(symbol, tf, limit);
 }
 
 export async function fetchSnapshot(): Promise<SystemSnapshot> {
