@@ -256,6 +256,8 @@ plugins:
     storage_path: "./evolution_memory.jsonl"
     max_queue_size: 1000
     process_interval: 1.0
+    # 标注匹配度权重（T5.1）— 有标注数据时混入 fitness
+    annotation_fitness_weight: 0.3
     # GA 超参数
     population_size: 24
     max_generations: 50

@@ -4,10 +4,14 @@ import type {
   AnalyzeResponse,
   BacktestDetailResponse,
   Candle,
+  ChatMessage,
+  DiagnosisResponse,
   EvolutionResultsResponse,
+  MatchReport,
   SystemSnapshot,
   TradeRecord,
   V4WyckoffState,
+  WyckoffAnnotation,
 } from "../types/api";
 
 const BASE_URL = "";
@@ -133,11 +137,12 @@ export async function fetchBacktestDetail(
 export async function fetchAnalysis(
   symbol = "ETHUSDT",
   bars = 2000,
+  timeframe = "H4",
 ): Promise<AnalyzeResponse> {
   const res = await fetch(`${BASE_URL}/api/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ symbol, bars }),
+    body: JSON.stringify({ symbol, bars, timeframe }),
   });
   if (!res.ok) throw new Error(`fetchAnalysis failed: ${res.status}`);
   return res.json() as Promise<AnalyzeResponse>;
@@ -149,4 +154,88 @@ export async function fetchV4State(): Promise<V4WyckoffState> {
   const res = await fetch(`${BASE_URL}/api/wyckoff/state`);
   if (!res.ok) throw new Error(`fetchV4State failed: ${res.status}`);
   return res.json() as Promise<V4WyckoffState>;
+}
+
+// Annotations CRUD
+
+export async function fetchAnnotations(
+  symbol: string,
+  timeframe: string,
+): Promise<{ annotations: WyckoffAnnotation[] }> {
+  const res = await fetch(
+    `${BASE_URL}/api/annotations?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`,
+  );
+  if (!res.ok) throw new Error(`fetchAnnotations failed: ${res.status}`);
+  return res.json() as Promise<{ annotations: WyckoffAnnotation[] }>;
+}
+
+export async function createAnnotation(
+  data: Partial<WyckoffAnnotation>,
+): Promise<{ success: boolean; annotation: WyckoffAnnotation }> {
+  const res = await fetch(`${BASE_URL}/api/annotations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`createAnnotation failed: ${res.status}`);
+  return res.json() as Promise<{ success: boolean; annotation: WyckoffAnnotation }>;
+}
+
+export async function deleteAnnotation(
+  id: string,
+  symbol: string,
+  timeframe: string,
+): Promise<{ success: boolean }> {
+  const res = await fetch(
+    `${BASE_URL}/api/annotations/${id}?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) throw new Error(`deleteAnnotation failed: ${res.status}`);
+  return res.json() as Promise<{ success: boolean }>;
+}
+
+// Annotation compare
+
+export async function fetchAnnotationCompare(
+  symbol: string,
+  timeframe: string,
+): Promise<MatchReport> {
+  const res = await fetch(
+    `${BASE_URL}/api/annotations/compare?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`,
+  );
+  if (!res.ok) throw new Error(`fetchAnnotationCompare failed: ${res.status}`);
+  return res.json() as Promise<MatchReport>;
+}
+
+// Diagnosis chat
+
+export async function sendDiagnosisChat(
+  message: string,
+  context: Record<string, unknown> = {},
+): Promise<{ success: boolean; response: DiagnosisResponse }> {
+  const res = await fetch(`${BASE_URL}/api/annotations/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, context }),
+  });
+  if (!res.ok) throw new Error(`sendDiagnosisChat failed: ${res.status}`);
+  return res.json() as Promise<{ success: boolean; response: DiagnosisResponse }>;
+}
+
+// Chat history persistence
+
+export async function fetchChatHistory(): Promise<{
+  messages: ChatMessage[];
+}> {
+  const res = await fetch(`${BASE_URL}/api/annotations/chat/history`);
+  if (!res.ok) throw new Error(`fetchChatHistory failed: ${res.status}`);
+  return res.json() as Promise<{ messages: ChatMessage[] }>;
+}
+
+export async function clearChatHistory(): Promise<{ success: boolean }> {
+  const res = await fetch(`${BASE_URL}/api/annotations/chat/history`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`clearChatHistory failed: ${res.status}`);
+  return res.json() as Promise<{ success: boolean }>;
 }

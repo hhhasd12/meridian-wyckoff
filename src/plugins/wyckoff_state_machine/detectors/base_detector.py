@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from src.kernel.types import StateEvidence
 
-from ..detector_registry import NodeDetector, NodeScore
+from ..detector_registry import NodeDetector, NodeScore, ParamSpec
 from ..principles.bar_features import BarFeatures, StructureContext
 
 
@@ -51,6 +51,7 @@ def make_score(
 __all__ = [
     "NodeDetector",
     "NodeScore",
+    "ParamSpec",
     "BarFeatures",
     "StructureContext",
     "make_evidence",

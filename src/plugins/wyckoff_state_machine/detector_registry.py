@@ -9,13 +9,30 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from src.kernel.types import StateEvidence
 
 from .principles.bar_features import BarFeatures, StructureContext
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ParamSpec:
+    """可进化参数规格
+
+    Attributes:
+        min: 参数下界
+        max: 参数上界
+        default: 默认值
+        current: 当前值
+    """
+
+    min: float
+    max: float
+    default: float
+    current: float
 
 
 @dataclass
@@ -59,6 +76,9 @@ class NodeDetector(ABC):
     检测器只负责举证，不决定状态推进（AD-3）。
     """
 
+    def __init__(self) -> None:
+        self._params: Dict[str, float] = {}
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -84,16 +104,26 @@ class NodeDetector(ABC):
         """
         ...
 
-    def get_evolvable_params(self) -> Dict[str, Any]:
+    def get_evolvable_params(self) -> Dict[str, "ParamSpec"]:
         """返回可被进化系统优化的参数
 
         默认返回空字典。子类可覆盖此方法，
         暴露阈值参数供 GA 进化优化。
 
         Returns:
-            参数名到当前值的映射
+            参数名到 ParamSpec 的映射
         """
         return {}
+
+    def set_params(self, params: Dict[str, float]) -> None:
+        """设置参数值（进化系统调用）
+
+        Args:
+            params: 参数名到新值的映射，只更新已存在的 key
+        """
+        for key, value in params.items():
+            if key in self._params:
+                self._params[key] = value
 
 
 class DetectorRegistry:

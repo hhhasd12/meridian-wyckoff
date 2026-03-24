@@ -25,7 +25,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -761,6 +761,7 @@ class WyckoffStateResult:
     critical_levels: Dict[str, float] = field(
         default_factory=dict
     )  # SC_LOW, BC_HIGH, etc.
+    event_window: Optional[Tuple[int, int]] = None  # (start_bar, end_bar)
 
 
 # ============================================================

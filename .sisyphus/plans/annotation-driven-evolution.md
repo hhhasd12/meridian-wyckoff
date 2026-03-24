@@ -116,70 +116,57 @@
 
 ---
 
-## Wave 4：AI诊断管道 + 对话
+## Wave 4：内建AI诊断系统 + Python原生记忆
 
-> AI不只输出报告，要能和你对话。你标注时的判断理由，AI需要问出来。
+> 不接VCP，完全内建。仿VCP TagMemo概念，用Python原生向量检索。
+> AI诊断顾问完全内建，无跨系统通信。
 
-### T4.1 — 诊断prompt系统（跟prompts.py同模式）
-- **系统prompt**：你是威科夫状态机的诊断顾问。用户是威科夫专家。
-  你的任务是理解用户标注和机器检测的差异，找出检测器的具体缺陷。
-- **诊断prompt**：输入AnnotationMatch+BarFeatures+检测器源码片段
-  → 输出：差异原因+证据+参数修改建议+追问（如果有歧义）
-- **追问机制**：AI遇到不确定的标注边界时主动提问
-  例："bar 157量还很大但价格已回升，你认为它是SC的一部分还是AR的开始？"
-- 测试：mock对话流，验证追问触发条件
+### T4.1 — 诊断prompt系统
+- 系统prompt: 威科夫状态机诊断顾问角色
+- 诊断prompt: AnnotationMatch + BarFeatures + 检测器源码片段
+  → 差异原因 + 证据 + 参数修改建议 + 追问
+- 追问机制: AI遇到不确定标注边界时主动提问
+- 跟 evolution_advisor/prompts.py 同模式
+- 测试: mock对话流，验证追问触发条件
 
 ### T4.2 — 对话式诊断类（双后端OpenAI/Ollama）
-- 跟 advisor.py 同模式，但支持多轮对话（保持conversation history）
-- 每轮对话自动注入：当前标注数据+机器状态+被讨论K线的BarFeatures
+- 跟 advisor.py 同模式，支持多轮对话（conversation history）
+- 每轮自动注入: 当前标注数据 + 机器状态 + BarFeatures
 - `diagnose_chat(message, context) -> AIResponse`
-- AIResponse含：text + suggested_params + highlighted_bars（高亮哪些K线）
-- 测试：多轮对话保持上下文
+- AIResponse含: text + suggested_params + highlighted_bars
+- 测试: 多轮对话保持上下文
 
 ### T4.3 — AnalysisPage 侧边对话面板
-- AnalysisPage 右侧加对话面板（可折叠）
-- **图表↔对话联动**：
-  - 你点图上的K线 → 对话自动引用"bar 157的数据是..."
-  - AI提到"bar 157" → 图上高亮那根K线
-  - AI建议参数修改 → 面板显示修改预览+应用按钮
-- WebSocket端点 `/api/annotations/chat`
+- 右侧可折叠对话面板
+- 图表↔对话联动: 点K线→对话引用, AI提到bar→图上高亮
+- WebSocket /api/annotations/chat
 - 对话历史按标注session保存
-- 测试：playwright 对话+高亮联动
+- 测试: playwright 对话+高亮联动
 
-### T4.4 — AI输出→agent可执行的修改建议
-- AI输出格式化为结构化JSON：
-  ```json
-  {
-    "diagnosis": "SCDetector只看单根K线",
-    "evidence": "用户标注SC跨4根，volume_ratio递减模式",
-    "param_changes": [
-      {"detector": "SC", "param": "consecutive_vol_bars", "from": 1, "to": 3},
-      {"detector": "SC", "param": "exhaustion_ratio", "value": 0.5}
-    ],
-    "logic_changes": [
-      {
-        "detector": "SC", 
-        "description": "增加连续放量检测：前N根volume_ratio>阈值",
-        "file": "accumulation.py",
-        "method": "SCDetector.evaluate"
-      }
-    ],
-    "confidence": 0.85
-  }
-  ```
-- 你确认后 → coding agent执行 → 重跑验证
-- 测试：JSON解析+字段验证
+### T4.4 — AI输出→结构化修改建议
+- JSON格式: diagnosis + evidence + param_changes + logic_changes
+- 用户确认后 → coding agent执行 → 重跑验证
+- 测试: JSON解析+字段验证
 
-### T4.5 — 检测器知识库（AI学习层）
-- 每次诊断后AI总结一条规则，持久化存储
-- `data/detector_knowledge/{detector_name}.jsonl`
-- 规则格式：
-  ```json
-  {"rule": "SC需要连续≥3根volume_ratio>2.0", "source": "用户标注2017-09-12", "confidence": 0.9}
+### T4.5 — 检测器知识库（Python原生向量记忆）
+- **不接VCP，完全内建**
+- 仿VCP TagMemo概念，但用Python原生实现:
+  - 存储层: sqlite-vec (SQLite向量扩展) 或 chromadb
+  - 向量化: sentence-transformers 本地模型 (all-MiniLM-L6-v2)
+  - 无需Rust引擎，无需Node.js
+- 检测器知识存储:
   ```
-- 下次诊断时自动注入相关检测器的历史规则（不是RAG，是精确按检测器名查）
+  data/detector_knowledge.db  (SQLite + 向量索引)
+  表: rules (id, detector_name, rule_text, embedding BLOB, source, confidence, created_at)
+  ```
+- 每次诊断后AI总结规则，向量化存储
+- 下次诊断时按检测器名精确查 + 语义相似度查
 - 规则积累 = AI的"记忆"，跨session持久化
-- 测试：规则存储+跨session读取
+- 核心API:
+  - `add_rule(detector, rule_text, source, confidence)`
+  - `search_rules(detector, query, k=5) -> List[Rule]`
+  - `get_detector_rules(detector) -> List[Rule]`
+- 测试: 规则CRUD + 向量检索 + 跨session持久化
 
 ---
 
@@ -209,7 +196,7 @@
 | 2 | 前端标注工具 | 3-4 |
 | 3 | 对比引擎+差异可视化 | 2 |
 | **小计** | **能标注+看差异** | **7-9** |
-| 4 | AI诊断对话+图表联动 | 3-4 |
+| 4 | 内建AI诊断+Python原生向量记忆 | 3-4 |
 | 5 | 闭环进化 | 2 |
 | **总计** | **完整闭环** | **12-15** |
 

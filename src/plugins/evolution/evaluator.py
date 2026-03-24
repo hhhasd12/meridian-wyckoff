@@ -5,9 +5,12 @@
 2. 计算标准化性能指标
 3. 记录亏损交易到 MistakeBook
 4. 返回 WFA/GA 可消费的指标字典
+5. 可选：集成标注匹配度到 fitness（T5.1）
 """
 
 import logging
+import os
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
@@ -25,6 +28,10 @@ class StandardEvaluator:
         evaluator = StandardEvaluator(mistake_book=book)
         metrics = evaluator(config, data_dict)
 
+    标注匹配度（T5.1）：
+        如果设置了 annotation_weight > 0 且 data/annotations/ 有标注数据，
+        最终 fitness 会混入标注匹配度分数。无标注时不影响现有行为。
+
     WFA 元数据协议：
         data_dict 中可能包含 "__test_start_ts__" 和 "__warmup_bars__"
         这些会在调用前被 pop 出来，不传给回测器
@@ -37,6 +44,9 @@ class StandardEvaluator:
         slippage_rate: float = 0.0005,
         warmup_bars: int = 50,
         mistake_book: Optional[Any] = None,
+        annotation_weight: float = 0.0,
+        annotation_dir: str = "data/annotations",
+        min_annotations: int = 5,
     ) -> None:
         self.initial_capital = initial_capital
         self.commission_rate = commission_rate
@@ -44,6 +54,10 @@ class StandardEvaluator:
         self.warmup_bars = warmup_bars
         self.mistake_book = mistake_book
         self.last_backtest_result: Optional[BacktestResult] = None
+        # T5.1: 标注匹配度
+        self.annotation_weight = annotation_weight
+        self.annotation_dir = annotation_dir
+        self.min_annotations = min_annotations
 
     def __call__(
         self,
@@ -99,7 +113,96 @@ class StandardEvaluator:
             self._record_losses(result)
 
         # 6. 计算指标
-        return self._compute_metrics(result)
+        metrics = self._compute_metrics(result)
+
+        # 7. T5.1: 混入标注匹配度（如果有标注数据且权重 > 0）
+        if self.annotation_weight > 0:
+            ann_score = self._compute_annotation_score(result)
+            metrics["ANNOTATION_SCORE"] = ann_score
+            if ann_score > 0:
+                base = metrics["COMPOSITE_SCORE"]
+                w = self.annotation_weight
+                metrics["COMPOSITE_SCORE"] = base * (1 - w) + ann_score * w
+
+        return metrics
+
+    def _compute_annotation_score(self, result: BacktestResult) -> float:
+        """T5.1: 从回测结果的 transition_history 计算标注匹配度
+
+        流程：
+        1. 扫描 data/annotations/ 目录找到标注文件
+        2. 用 AnnotationMatcher 计算 match_score (F1)
+        3. 标注数不足 min_annotations 时返回 0（不干扰 fitness）
+
+        Returns:
+            match_score [0, 1]，无标注或不足最小量时返回 0.0
+        """
+        try:
+            ann_dir = Path(self.annotation_dir)
+            if not ann_dir.exists():
+                return 0.0
+
+            # 收集所有标注文件
+            jsonl_files = list(ann_dir.glob("*.jsonl"))
+            if not jsonl_files:
+                return 0.0
+
+            import json
+            from src.plugins.annotation.matcher import AnnotationMatcher
+
+            all_annotations: list = []
+            for f in jsonl_files:
+                with open(f, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if line:
+                            try:
+                                all_annotations.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                continue
+
+            # 只有 event 类型标注参与匹配
+            event_anns = [a for a in all_annotations if a.get("type") == "event"]
+            if len(event_anns) < self.min_annotations:
+                return 0.0
+
+            # 从回测结果构建 transition_history
+            # BacktestResult.bar_details 中有 state_changed + state 信息
+            transition_history = self._extract_transitions(result)
+            if not transition_history:
+                return 0.0
+
+            matcher = AnnotationMatcher(tolerance_bars=3)
+            report = matcher.match(event_anns, transition_history)
+            return report.match_score
+        except Exception as e:
+            logger.debug("标注匹配度计算失败: %s", e)
+            return 0.0
+
+    @staticmethod
+    def _extract_transitions(result: BacktestResult) -> list:
+        """从 BacktestResult.bar_details 提取状态转换历史
+
+        Returns:
+            转换历史列表 [{"from": str, "to": str, "bar": int}]
+        """
+        transitions = []
+        prev_state = ""
+        for i, detail in enumerate(result.bar_details):
+            cur_state = detail.state if hasattr(detail, "state") else ""
+            if cur_state and cur_state != prev_state and prev_state:
+                transitions.append(
+                    {
+                        "from": prev_state,
+                        "to": cur_state,
+                        "bar": i,
+                        "confidence": detail.confidence
+                        if hasattr(detail, "confidence")
+                        else 0.5,
+                    }
+                )
+            prev_state = cur_state
+        return transitions
 
     def _record_losses(self, result: BacktestResult) -> None:
         """记录亏损交易到错题本"""

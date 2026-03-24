@@ -469,3 +469,88 @@ export interface V4WyckoffState {
   last_candle_time: string | null;
   bar_index: number;
 }
+
+// ============================================================
+// Annotations (POST/GET/DELETE /api/annotations)
+// ============================================================
+
+export interface WyckoffAnnotation {
+  id: string;
+  type: "event" | "level" | "structure";
+  symbol: string;
+  timeframe: string;
+  event_type?: string;
+  start_time?: number;
+  end_time?: number;
+  start_bar_index?: number;
+  end_bar_index?: number;
+  price?: number;
+  level_label?: string;
+  structure_type?: string;
+  confidence: number;
+  notes: string;
+  created_at: string;
+}
+
+// ============================================================
+// Annotation Compare (GET /api/annotations/compare)
+// ============================================================
+
+export interface MatchResult {
+  type: "matched" | "missed" | "false_positive" | "type_mismatch";
+  annotation?: Record<string, unknown>;
+  detection?: Record<string, unknown>;
+  details: string;
+}
+
+export interface MatchReport {
+  total_annotations: number;
+  total_detections: number;
+  matched: number;
+  missed: number;
+  false_positives: number;
+  type_mismatches: number;
+  match_score: number;
+  results: MatchResult[];
+}
+
+// ============================================================
+// AI Diagnosis Chat (POST /api/annotations/chat)
+// ============================================================
+
+export interface DiagnosisResponse {
+  text: string;
+  suggested_params: Array<{
+    detector: string;
+    param: string;
+    from: number;
+    to: number;
+  }>;
+  highlighted_bars: number[];
+  follow_up_question: string | null;
+  confidence: number;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
+  suggested_params?: DiagnosisResponse["suggested_params"];
+  highlighted_bars?: number[];
+}
+
+// ============================================================
+// Drawing Tools (frontend-only, in-memory)
+// ============================================================
+
+export interface DrawingData {
+  id: string;
+  tool: "segment" | "ray" | "channel";
+  x1_time: number; // unix timestamp
+  y1_price: number;
+  x2_time: number; // unix timestamp
+  y2_price: number;
+  channel_offset?: number; // price offset for channel parallel line
+  color?: string;
+  label?: string;
+}

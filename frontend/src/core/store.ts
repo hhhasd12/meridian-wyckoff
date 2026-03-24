@@ -12,6 +12,7 @@ import type {
   Timeframe,
   TradeRecord,
   V4WyckoffState,
+  WyckoffAnnotation,
   WyckoffStateResult,
 } from "../types/api";
 import type { WsStatus } from "./ws";
@@ -92,6 +93,10 @@ interface AppState {
   // V4 State Machine
   v4State: V4WyckoffState | null;
   setV4State: (s: V4WyckoffState | null) => void;
+
+  // Annotations
+  annotations: WyckoffAnnotation[];
+  setAnnotations: (a: WyckoffAnnotation[]) => void;
 }
 
 const MAX_SIGNALS = 50;
@@ -193,4 +198,8 @@ export const useStore = create<AppState>((set) => ({
   // V4 State Machine
   v4State: null,
   setV4State: (v4State) => set({ v4State }),
+
+  // Annotations
+  annotations: [],
+  setAnnotations: (annotations) => set({ annotations }),
 }));

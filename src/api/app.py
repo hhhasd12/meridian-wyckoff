@@ -1,6 +1,6 @@
 """FastAPI 应用 - 威科夫交易引擎后端 API
 
-提供 13 个 REST 端点和 1 个 WebSocket 端点：
+提供 22 个 REST 端点和 1 个 WebSocket 端点：
 - GET /api/candles/{symbol}/{tf} — 历史K线数据
 - GET /api/system/snapshot — 系统状态快照
 - GET /api/wyckoff/state — V4 状态机完整状态（三层语义+原则分数+边界）
@@ -14,6 +14,18 @@
 - GET /api/decisions — 决策历史
 - GET /api/advisor/latest — AI 顾问最新分析
 - POST /api/config — 更新配置
+- POST /api/annotations — 创建威科夫标注
+- GET /api/annotations?symbol=&timeframe= — 获取标注列表
+- DELETE /api/annotations/{id}?symbol=&timeframe= — 删除标注
+- GET /api/annotations/auto-compare — 增量标注自动对比结果
+- GET /api/annotations/compare — 对比标注与检测结果
+- GET /api/annotations/suggestions — 获取修改建议列表
+- POST /api/annotations/suggestions/{id}/apply — 应用参数修改建议
+- POST /api/annotations/chat — 标注诊断对话（AI分析）
+- GET /api/annotations/chat/history — 获取对话历史
+- DELETE /api/annotations/chat/history — 清空对话历史
+- GET /api/annotations/knowledge — 搜索/统计检测器知识库
+- POST /api/annotations/knowledge — 添加检测器知识规则
 - WS /ws/realtime — 主题订阅式实时推送
 """
 
@@ -43,6 +55,7 @@ class AppState:
     def __init__(self) -> None:
         self.wyckoff_app: Optional[WyckoffApp] = None
         self.start_time: Optional[float] = None
+        self._last_analysis: Optional[Dict[str, Any]] = None
 
     @property
     def is_ready(self) -> bool:
@@ -480,11 +493,12 @@ def _sync_analyze(
     symbol: str,
     n_bars: int,
     config: Dict[str, Any],
+    request_timeframe: str = "H4",
 ) -> Dict[str, Any]:
     """同步CPU密集分析 — 在线程池中运行（T2.2）
 
     内含 searchsorted 向量化预计算（T2.3）：
-    对每个TF只做一次 searchsorted(h4.index)，得到完整映射数组，
+    对每个TF只做一次 searchsorted(primary.index)，得到完整映射数组，
     循环内直接查表，从 n_bars*5次 searchsorted → 5次。
     """
     import numpy as np
@@ -492,7 +506,9 @@ def _sync_analyze(
 
     from src.plugins.wyckoff_engine.engine import WyckoffEngine
 
-    h4 = data["H4"]
+    # 使用请求的 timeframe 作为主时间框架，不存在时 fallback 到 H4
+    tf_key = request_timeframe if request_timeframe in data else "H4"
+    h4 = data[tf_key]
     engine = WyckoffEngine(config)
     warmup = 50
 
@@ -530,7 +546,7 @@ def _sync_analyze(
         if i >= warmup:
             # 提取V4信息
             v4_data: Dict[str, Any] = {}
-            primary_sm = engine._state_machines.get("H4")
+            primary_sm = engine._state_machines.get(tf_key)
             if primary_sm is not None:
                 scorer = getattr(primary_sm, "_scorer", None)
                 last_features = (
@@ -619,7 +635,7 @@ def _sync_analyze(
 
     return {
         "symbol": symbol,
-        "timeframe": "H4",
+        "timeframe": tf_key,
         "total_bars": len(bar_details),
         "warmup_bars": warmup,
         "bar_details": bar_details,
@@ -639,24 +655,28 @@ async def analyze_state_machine(request: AnalyzeRequest) -> Dict[str, Any]:
     import pandas as pd
 
     # 加载数据
-    data = _load_evolution_data_for_api()
-    if not data or "H4" not in data:
-        return {
-            "error": "数据文件缺失，请先运行 python fetch_data.py",
-            "bar_details": [],
-        }
+    data = _load_evolution_data_for_api(symbol=request.symbol)
+    if not data or request.timeframe not in data:
+        # fallback: 如果请求的 timeframe 不在数据中，检查 H4
+        if not data or "H4" not in data:
+            return {
+                "error": "数据文件缺失，请先运行 python fetch_data.py",
+                "bar_details": [],
+            }
 
-    h4 = data.get("H4")
+    tf_key = request.timeframe if request.timeframe in data else "H4"
+    h4 = data.get(tf_key)
     if h4 is None or not isinstance(h4, pd.DataFrame) or len(h4) < 60:
-        return {"error": "H4 数据不足", "bar_details": []}
+        return {"error": f"{tf_key} 数据不足", "bar_details": []}
 
     n_bars = min(request.bars, len(h4))
 
-    # T2.4: 缓存检查 — 以最后K线时间+bars数做key
-    cache_key = f"{str(h4.index[-1])}_{n_bars}"
+    # T2.4: 缓存检查 — 以 symbol+timeframe+最后K线时间+bars数做key
+    cache_key = f"{request.symbol}_{tf_key}_{str(h4.index[-1])}_{n_bars}"
     cached = _analysis_cache.get(cache_key)
     if cached is not None:
         logger.info("分析缓存命中: %s", cache_key)
+        app_state._last_analysis = cached
         return cached
 
     # 获取引擎配置
@@ -672,11 +692,14 @@ async def analyze_state_machine(request: AnalyzeRequest) -> Dict[str, Any]:
     # T2.2: CPU密集计算放到线程池
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
-        None, _sync_analyze, data, request.symbol, n_bars, config
+        None, _sync_analyze, data, request.symbol, n_bars, config, request.timeframe
     )
 
     # T2.4: 写入缓存
     _analysis_cache.set(cache_key, result)
+
+    # 缓存供诊断对话使用
+    app_state._last_analysis = result
 
     return result
 
@@ -713,18 +736,25 @@ async def start_evolution(request: EvolutionStartRequest) -> Dict[str, Any]:
     return result
 
 
-def _load_evolution_data_for_api() -> Dict[str, Any]:
-    """为 API 模式加载进化数据"""
+def _load_evolution_data_for_api(symbol: str = "ETHUSDT") -> Dict[str, Any]:
+    """为 API 模式加载进化数据
+
+    Args:
+        symbol: 交易对（如 ETHUSDT/BTCUSDT），用于匹配 CSV 文件名
+    """
     import pandas as pd
 
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    csv_map = {
-        "D1": os.path.join(project_root, "data", "ETHUSDT_1d.csv"),
-        "H4": os.path.join(project_root, "data", "ETHUSDT_4h.csv"),
-        "H1": os.path.join(project_root, "data", "ETHUSDT_1h.csv"),
-        "M15": os.path.join(project_root, "data", "ETHUSDT_15m.csv"),
-        "M5": os.path.join(project_root, "data", "ETHUSDT_5m.csv"),
+
+    # 时间框架到文件后缀的映射
+    tf_suffix_map = {
+        "D1": "1d",
+        "H4": "4h",
+        "H1": "1h",
+        "M15": "15m",
+        "M5": "5m",
     }
+
     col_rename = {
         "Open": "open",
         "High": "high",
@@ -733,7 +763,11 @@ def _load_evolution_data_for_api() -> Dict[str, Any]:
         "Volume": "volume",
     }
     data: Dict[str, Any] = {}
-    for tf, csv_path in csv_map.items():
+    for tf, suffix in tf_suffix_map.items():
+        # 优先用请求的 symbol，fallback 到 ETHUSDT
+        csv_path = os.path.join(project_root, "data", f"{symbol}_{suffix}.csv")
+        if not os.path.exists(csv_path) and symbol != "ETHUSDT":
+            csv_path = os.path.join(project_root, "data", f"ETHUSDT_{suffix}.csv")
         if os.path.exists(csv_path):
             df = pd.read_csv(csv_path, index_col=0, parse_dates=True)
             df = df.rename(columns=col_rename)
@@ -1122,6 +1156,335 @@ async def get_advisor_latest() -> Dict[str, Any]:
     except Exception as e:
         logger.warning("获取顾问分析失败: %s", e)
         return {"analysis": None, "status": "error"}
+
+
+# ========== 标注 API ==========
+
+
+@app.post("/api/annotations")
+async def create_annotation(request: Request) -> Dict[str, Any]:
+    """创建威科夫标注"""
+    if not app_state.wyckoff_app:
+        return {"error": "System not initialized"}
+    body = await request.json()
+    manager = app_state.wyckoff_app.plugin_manager
+    annotation_plugin = manager.get_plugin("annotation")
+    if annotation_plugin is None:
+        return {"error": "Annotation plugin not loaded"}
+    if not hasattr(annotation_plugin, "create_annotation"):
+        return {"error": "Annotation plugin missing create_annotation method"}
+    try:
+        result = annotation_plugin.create_annotation(body)
+        return {"success": True, "annotation": result}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/annotations")
+async def get_annotations(symbol: str = "", timeframe: str = "") -> Dict[str, Any]:
+    """获取标注列表"""
+    if not app_state.wyckoff_app:
+        return {"annotations": []}
+    if not symbol or not timeframe:
+        return {"error": "symbol and timeframe are required"}
+    manager = app_state.wyckoff_app.plugin_manager
+    annotation_plugin = manager.get_plugin("annotation")
+    if annotation_plugin is None:
+        return {"annotations": []}
+    if not hasattr(annotation_plugin, "get_annotations"):
+        return {"annotations": []}
+    annotations = annotation_plugin.get_annotations(symbol, timeframe)
+    return {"annotations": annotations}
+
+
+@app.delete("/api/annotations/{annotation_id}")
+async def delete_annotation(
+    annotation_id: str, symbol: str = "", timeframe: str = ""
+) -> Dict[str, Any]:
+    """删除标注"""
+    if not app_state.wyckoff_app:
+        return {"error": "System not initialized"}
+    if not symbol or not timeframe:
+        return {"error": "symbol and timeframe are required"}
+    manager = app_state.wyckoff_app.plugin_manager
+    annotation_plugin = manager.get_plugin("annotation")
+    if annotation_plugin is None:
+        return {"error": "Annotation plugin not loaded"}
+    if not hasattr(annotation_plugin, "delete_annotation"):
+        return {"error": "Annotation plugin missing delete_annotation method"}
+    success = annotation_plugin.delete_annotation(annotation_id, symbol, timeframe)
+    return {"success": success}
+
+
+@app.get("/api/annotations/compare")
+async def compare_annotations(symbol: str = "", timeframe: str = "") -> Dict[str, Any]:
+    """对比标注和状态机检测结果"""
+    if not app_state.wyckoff_app or not symbol or not timeframe:
+        return {"error": "symbol and timeframe required"}
+    manager = app_state.wyckoff_app.plugin_manager
+    annotation_plugin = manager.get_plugin("annotation")
+    engine_plugin = manager.get_plugin("wyckoff_engine")
+    if annotation_plugin is None or engine_plugin is None:
+        return {"error": "Required plugins not loaded"}
+    # 获取状态机转换历史
+    state = (
+        engine_plugin.get_current_state()
+        if hasattr(engine_plugin, "get_current_state")
+        else {}
+    )
+    transition_history = state.get("transition_history", [])
+    if hasattr(annotation_plugin, "compare_with_detections"):
+        result = annotation_plugin.compare_with_detections(
+            symbol, timeframe, transition_history
+        )
+        return result
+    return {"error": "compare method not available"}
+
+
+@app.get("/api/annotations/auto-compare")
+async def get_auto_compare() -> Dict[str, Any]:
+    """T5.3: 获取最新的增量标注自动对比结果"""
+    if not app_state.wyckoff_app:
+        return {"error": "System not initialized"}
+    manager = app_state.wyckoff_app.plugin_manager
+    ann = manager.get_plugin("annotation")
+    if ann is None or not hasattr(ann, "get_auto_compare_result"):
+        return {"error": "Auto-compare not available"}
+    result = ann.get_auto_compare_result()
+    if result is None:
+        return {"result": None, "message": "No auto-compare result yet"}
+    return {"result": result}
+
+
+# ========== 修改建议 API ==========
+
+
+@app.get("/api/annotations/suggestions")
+async def get_suggestions(status: str = "") -> Dict[str, Any]:
+    """获取修改建议列表
+
+    Args:
+        status: 按状态筛选（pending/applied/rejected），空返回全部
+
+    Returns:
+        {"suggestions": [...]}
+    """
+    if not app_state.wyckoff_app:
+        return {"suggestions": []}
+    manager = app_state.wyckoff_app.plugin_manager
+    ann = manager.get_plugin("annotation")
+    if ann is None or not hasattr(ann, "get_suggestions"):
+        return {"suggestions": []}
+    return {"suggestions": ann.get_suggestions(status)}
+
+
+@app.post("/api/annotations/suggestions/{suggestion_id}/apply")
+async def apply_suggestion(suggestion_id: str) -> Dict[str, Any]:
+    """应用参数修改建议到检测器注册表
+
+    需要 annotation 和 wyckoff_state_machine 插件同时加载。
+
+    Args:
+        suggestion_id: 建议 UUID
+
+    Returns:
+        应用结果 {applied: int, skipped: int, errors: [...]}
+    """
+    if not app_state.wyckoff_app:
+        return {"error": "System not initialized"}
+    manager = app_state.wyckoff_app.plugin_manager
+    ann = manager.get_plugin("annotation")
+    if ann is None:
+        return {"error": "Annotation plugin not loaded"}
+    sm = manager.get_plugin("wyckoff_state_machine")
+    if sm is None:
+        return {"error": "State machine plugin not loaded"}
+    # 获取检测器注册表
+    registry = getattr(sm, "_registry", None) or getattr(sm, "registry", None)
+    if registry is None:
+        return {"error": "Detector registry not found"}
+    mgr = ann.get_suggestion_manager()
+    result = mgr.apply_param_changes(suggestion_id, registry)
+    return result
+
+
+# ========== 诊断对话 API ==========
+
+
+@app.post("/api/annotations/chat")
+async def annotation_chat(request: Request) -> Dict[str, Any]:
+    """标注诊断对话 — AI 分析标注与检测差异
+
+    接收用户消息和上下文，返回结构化诊断结果。
+    支持多轮对话。
+
+    Request body:
+        {"message": "...", "context": {...}}
+
+    Returns:
+        {"success": true, "response": {text, suggested_params, ...}}
+    """
+    if not app_state.wyckoff_app:
+        return {"error": "System not initialized"}
+    body = await request.json()
+    message = body.get("message", "")
+    context = body.get("context", {})
+    if not message:
+        return {"error": "message is required"}
+    manager = app_state.wyckoff_app.plugin_manager
+    annotation_plugin = manager.get_plugin("annotation")
+    if annotation_plugin is None or not hasattr(annotation_plugin, "diagnose_chat"):
+        return {"error": "Diagnosis not available"}
+
+    # ===== 自动注入上下文（bar_features / knowledge_rules / detector_params） =====
+    selected_bar = context.get("selected_bar")
+
+    # 1. 注入 bar_features — 从最近的 analyze 缓存获取选中K线数据
+    if selected_bar is not None and "bar_features" not in context:
+        last = app_state._last_analysis
+        if last and "bar_details" in last:
+            for bar in last["bar_details"]:
+                if bar.get("bar_index") == selected_bar:
+                    context["bar_features"] = json.dumps(
+                        bar, ensure_ascii=False, default=str
+                    )
+                    context["focus_items"] = (
+                        f"Bar #{selected_bar} "
+                        f"(timestamp: {bar.get('timestamp', 'unknown')})"
+                    )
+                    break
+
+    # 2. 注入 knowledge_rules — 用消息搜索相关知识
+    if "knowledge_rules" not in context and hasattr(
+        annotation_plugin, "search_knowledge"
+    ):
+        try:
+            rules = annotation_plugin.search_knowledge(message, k=3)
+            if rules:
+                context["knowledge_rules"] = json.dumps(
+                    rules, ensure_ascii=False, default=str
+                )
+        except Exception:
+            pass
+
+    # 3. 注入 detector_params — 当前检测器参数快照
+    if "detector_params" not in context:
+        sm_plugin = manager.get_plugin("wyckoff_state_machine")
+        if sm_plugin is not None:
+            try:
+                registry = getattr(sm_plugin, "_registry", None) or getattr(
+                    sm_plugin, "registry", None
+                )
+                if registry:
+                    all_params: Dict[str, Any] = {}
+                    detectors = getattr(registry, "_detectors", {})
+                    for name, det in detectors.items():
+                        if hasattr(det, "get_evolvable_params"):
+                            params = det.get_evolvable_params()
+                            if params:
+                                all_params[name] = {
+                                    k: {
+                                        "current": v.current,
+                                        "min": v.min,
+                                        "max": v.max,
+                                    }
+                                    for k, v in params.items()
+                                }
+                    if all_params:
+                        context["detector_params"] = json.dumps(
+                            all_params, ensure_ascii=False, default=str
+                        )
+            except Exception:
+                pass
+    # ===== 注入结束 =====
+
+    try:
+        result = annotation_plugin.diagnose_chat(message, context)
+        # 自动保存对话历史
+        if hasattr(annotation_plugin, "save_chat_message"):
+            now_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
+            annotation_plugin.save_chat_message(
+                {"role": "user", "content": message, "timestamp": now_ts}
+            )
+            annotation_plugin.save_chat_message(
+                {
+                    "role": "assistant",
+                    "content": result.get("text", ""),
+                    "timestamp": now_ts,
+                    "suggested_params": result.get("suggested_params", []),
+                    "highlighted_bars": result.get("highlighted_bars", []),
+                }
+            )
+        return {"success": True, "response": result}
+    except Exception as e:
+        logger.error("诊断对话失败: %s", e)
+        return {"error": str(e)}
+
+
+@app.get("/api/annotations/chat/history")
+async def get_chat_history() -> Dict[str, Any]:
+    """获取对话历史"""
+    if not app_state.wyckoff_app:
+        return {"messages": []}
+    manager = app_state.wyckoff_app.plugin_manager
+    ann = manager.get_plugin("annotation")
+    if ann is None or not hasattr(ann, "get_chat_history"):
+        return {"messages": []}
+    return {"messages": ann.get_chat_history()}
+
+
+@app.delete("/api/annotations/chat/history")
+async def clear_chat_history() -> Dict[str, Any]:
+    """清空对话历史"""
+    if not app_state.wyckoff_app:
+        return {"error": "System not initialized"}
+    manager = app_state.wyckoff_app.plugin_manager
+    ann = manager.get_plugin("annotation")
+    if ann is None or not hasattr(ann, "clear_chat_history"):
+        return {"error": "Not available"}
+    ann.clear_chat_history()
+    return {"success": True}
+
+
+@app.get("/api/annotations/knowledge")
+async def get_knowledge(detector: str = "", query: str = "") -> Dict[str, Any]:
+    """搜索检测器知识库"""
+    if not app_state.wyckoff_app:
+        return {"rules": []}
+    manager = app_state.wyckoff_app.plugin_manager
+    ann = manager.get_plugin("annotation")
+    if ann is None or not hasattr(ann, "search_knowledge"):
+        return {"rules": []}
+    if query:
+        rules = ann.search_knowledge(query, detector, k=10)
+    elif detector:
+        kb = ann.get_knowledge_base()
+        from dataclasses import asdict
+
+        rules = [asdict(r) for r in kb.get_detector_rules(detector)]
+    else:
+        stats = ann.get_knowledge_stats() if hasattr(ann, "get_knowledge_stats") else {}
+        return {"stats": stats}
+    return {"rules": rules}
+
+
+@app.post("/api/annotations/knowledge")
+async def add_knowledge(request: Request) -> Dict[str, Any]:
+    """添加检测器知识规则"""
+    if not app_state.wyckoff_app:
+        return {"error": "System not initialized"}
+    body = await request.json()
+    manager = app_state.wyckoff_app.plugin_manager
+    ann = manager.get_plugin("annotation")
+    if ann is None or not hasattr(ann, "add_knowledge_rule"):
+        return {"error": "Knowledge base not available"}
+    rule = ann.add_knowledge_rule(
+        detector_name=body.get("detector_name", ""),
+        rule_text=body.get("rule_text", ""),
+        source=body.get("source", ""),
+        confidence=body.get("confidence", 0.8),
+    )
+    return {"success": True, "rule": rule}
 
 
 # 前端静态文件服务（必须在所有 API 路由之后，"/" 是 catch-all）

@@ -7,6 +7,7 @@
 1. 训练/测试数据严格时间分离（无前视偏差）
 2. 多窗口交叉验证（不依赖单一窗口结果）
 3. 集成五层防过拟合检查
+4. T5.2: 标注数据作为额外约束（Pareto改进）
 """
 
 import logging
@@ -33,6 +34,8 @@ class WFAConfig:
     warmup_bars: int = 50  # 指标预热期
     min_trades_per_window: int = 3  # 每个窗口最少交易数
     oos_dr_threshold: float = 0.4  # OOS退化率阈值
+    # T5.2: 标注回归守护
+    annotation_regression_ratio: float = 0.95  # 新配置标注匹配度 < 旧 * 此值 = 回归
 
 
 @dataclass
@@ -47,6 +50,8 @@ class WFAReport:
     avg_train_sharpe: float
     avg_test_sharpe: float
     avg_test_trades: float
+    annotation_regression_passed: bool = True  # T5.2: 标注回归检查是否通过
+    annotation_score: float = 0.0  # T5.2: 当前配置的标注匹配度
     details: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -64,15 +69,18 @@ class WFAValidator:
         self,
         config: Optional[WFAConfig] = None,
         evaluator_fn: Optional[Callable] = None,
+        baseline_annotation_score: float = 0.0,
     ) -> None:
         """初始化 WFA 验证器
 
         Args:
             config: WFA 配置
             evaluator_fn: 评估函数签名 (config, data_dict) -> Dict[str, float]
+            baseline_annotation_score: 基准标注匹配度（旧配置的得分）
         """
         self.config = config or WFAConfig()
         self.evaluator_fn = evaluator_fn
+        self.baseline_annotation_score = baseline_annotation_score
 
     def set_evaluator(self, evaluator_fn: Callable) -> None:
         """设置评估函数"""
@@ -261,6 +269,32 @@ class WFAValidator:
             and avg_test_trades >= self.config.min_trades_per_window
         )
 
+        # T5.2: 标注回归守护 — 新配置的标注匹配度不能显著低于基准
+        ann_score = 0.0
+        ann_regression_passed = True
+        if passed and self.baseline_annotation_score > 0:
+            # 从测试段指标中取标注匹配度
+            ann_scores_per_window = []
+            for w in windows:
+                if w.test_result is not None:
+                    # 用 evaluator_fn 的结果中可能包含 ANNOTATION_SCORE
+                    # 但 test_result 只存了标准字段，需从测试段重新评估
+                    pass  # 使用下方独立计算
+            ann_score = self._compute_config_annotation_score(config, data_dict)
+            threshold = (
+                self.baseline_annotation_score * self.config.annotation_regression_ratio
+            )
+            if ann_score < threshold:
+                ann_regression_passed = False
+                passed = False
+                logger.info(
+                    "WFA标注回归: 新配置匹配度 %.3f < 基准 %.3f * %.2f = %.3f → REJECT",
+                    ann_score,
+                    self.baseline_annotation_score,
+                    self.config.annotation_regression_ratio,
+                    threshold,
+                )
+
         return WFAReport(
             passed=passed,
             windows=windows,
@@ -270,10 +304,13 @@ class WFAValidator:
             avg_train_sharpe=avg_train,
             avg_test_sharpe=avg_test,
             avg_test_trades=avg_test_trades,
+            annotation_regression_passed=ann_regression_passed,
+            annotation_score=ann_score,
             details={
                 "n_windows": len(windows),
                 "oos_dr_threshold": self.config.oos_dr_threshold,
                 "min_trades_per_window": self.config.min_trades_per_window,
+                "baseline_annotation_score": self.baseline_annotation_score,
             },
         )
 
@@ -351,6 +388,40 @@ class WFAValidator:
             if ts > 0.01:  # 避免除以接近零的值
                 ratios.append(1.0 - os / ts)
         return float(np.mean(ratios)) if ratios else 1.0
+
+    def set_baseline_annotation_score(self, score: float) -> None:
+        """设置基准标注匹配度（当前生产配置的得分）
+
+        Args:
+            score: 基准匹配度 [0, 1]
+        """
+        self.baseline_annotation_score = score
+
+    def _compute_config_annotation_score(
+        self,
+        config: Dict[str, Any],
+        data_dict: Dict[str, pd.DataFrame],
+    ) -> float:
+        """T5.2: 计算某个配置的标注匹配度
+
+        使用 evaluator_fn 执行回测，从结果中提取 ANNOTATION_SCORE。
+        如果 evaluator 未设置标注权重，则返回 0.0。
+
+        Args:
+            config: 待评估的配置
+            data_dict: 多TF数据
+
+        Returns:
+            标注匹配度 [0, 1]
+        """
+        if self.evaluator_fn is None:
+            return 0.0
+        try:
+            metrics = self.evaluator_fn(config, dict(data_dict))
+            return metrics.get("ANNOTATION_SCORE", 0.0)
+        except Exception as e:
+            logger.debug("计算标注匹配度失败: %s", e)
+            return 0.0
 
     def _empty_report(self, reason: str) -> WFAReport:
         """空报告"""

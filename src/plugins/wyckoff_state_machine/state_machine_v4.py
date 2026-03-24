@@ -15,7 +15,7 @@
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.kernel.types import (
     StateConfig,
@@ -87,6 +87,7 @@ class Hypothesis:
     contradicting_evidence: list = field(default_factory=list)
     confirmation_quality: float = 0.0
     rejection_reason: Optional[str] = None
+    bar_range: Optional[Tuple[int, int]] = None  # (proposed_at_bar, confirmed_at_bar)
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +238,9 @@ class WyckoffStateMachineV4:
 
         # Wave 3: 事件成交量记录（供检测器做跨事件量比较）
         self._event_volumes: Dict[str, float] = {}
+
+        # T1.1: 最近确认事件的bar范围（用于填充 WyckoffStateResult.event_window）
+        self._last_confirmed_bar_range: Optional[Tuple[int, int]] = None
 
     @property
     def current_state(self) -> str:
@@ -669,6 +673,10 @@ class WyckoffStateMachineV4:
         if len(self.evidence_chain) > 50:
             self.evidence_chain = self.evidence_chain[-50:]
 
+        # T1.1: 记录事件的bar范围
+        hyp.bar_range = (hyp.proposed_at_bar, self.bars_processed)
+        self._last_confirmed_bar_range = hyp.bar_range
+
         # 清除假设
         self.active_hypothesis = None
 
@@ -993,6 +1001,7 @@ class WyckoffStateMachineV4:
             previous_state=previous_state,
             heritage_score=self.heritage_score,
             critical_levels=self._boundary_manager.to_critical_levels(),
+            event_window=self._last_confirmed_bar_range,
         )
 
     @staticmethod

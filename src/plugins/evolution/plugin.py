@@ -110,7 +110,11 @@ class EvolutionPlugin(BasePlugin):
             from src.plugins.self_correction.mistake_book import MistakeBook
 
             self._mistake_book = MistakeBook(config.get("mistake_book_config", {}))
-            self._evaluator = StandardEvaluator(mistake_book=self._mistake_book)
+            ann_weight = config.get("annotation_fitness_weight", 0.0)
+            self._evaluator = StandardEvaluator(
+                mistake_book=self._mistake_book,
+                annotation_weight=ann_weight,
+            )
             self._anti_overfit = AntiOverfitGuard()
 
             ga_cfg = GAConfig(
@@ -256,7 +260,11 @@ class EvolutionPlugin(BasePlugin):
 
             config = self._config or {}
             self._mistake_book = MistakeBook(config.get("mistake_book_config", {}))
-            self._evaluator = StandardEvaluator(mistake_book=self._mistake_book)
+            ann_weight = config.get("annotation_fitness_weight", 0.0)
+            self._evaluator = StandardEvaluator(
+                mistake_book=self._mistake_book,
+                annotation_weight=ann_weight,
+            )
             self._anti_overfit = AntiOverfitGuard()
             self._wfa = WFAValidator(evaluator_fn=self._evaluator)
         except Exception as e:
