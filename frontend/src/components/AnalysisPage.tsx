@@ -254,7 +254,7 @@ export default function AnalysisPage() {
     const chart = init(container, { styles: KLC_DARK_STYLES });
     if (!chart) return;
 
-    chart.createIndicator("VOL", false, { id: "candle_pane" });
+    chart.createIndicator("VOL");
 
     // Create analysis overlays
     chart.createOverlay({ name: "phaseBgOverlay", lock: true, visible: true });

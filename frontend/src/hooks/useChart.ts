@@ -89,10 +89,8 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
     // Set dark background via container style (KLC uses canvas bg)
     container.style.backgroundColor = "#0d1117";
 
-    // Add built-in VOL indicator in main candle pane's sub-pane
-    chart.createIndicator("VOL", false, {
-      id: "candle_pane",
-    });
+    // Add VOL indicator in its own separate pane (not overlaid on candle pane)
+    chart.createIndicator("VOL");
 
     chartRef.current = chart;
 
