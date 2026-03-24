@@ -126,17 +126,23 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
     if (!chart || candles.length === 0) return;
 
     const klineData = candles.map(toKLineData);
+    console.log("[KLC-trading] data ready:", klineData.length, "bars, first:", klineData[0]);
 
     try {
-      // setDataLoader provides data to the chart via callback
+      // Order: setDataLoader → setPeriod → setSymbol
+      // KLC v10 requires all three (dataLoader + symbol + period) non-null
+      // before getBars callback fires.
       chart.setDataLoader({
         getBars: (params) => {
-          // On 'init' or 'forward', provide all our data
-          params.callback(klineData, false);
+          console.log("[KLC-trading] getBars type:", params.type, "len:", klineData.length);
+          params.callback(params.type === "init" ? klineData : [], false);
         },
       });
 
-      // Set symbol info to trigger data loading
+      // setPeriod is REQUIRED — without it, _period stays null and getBars never fires
+      chart.setPeriod({ type: "hour", span: 4 });
+
+      // setSymbol triggers resetData → _processDataLoad('init') → getBars
       chart.setSymbol({
         ticker: "BTC/USDT",
         pricePrecision: 2,

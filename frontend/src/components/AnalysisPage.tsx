@@ -33,6 +33,18 @@ function tsMs(iso: string): number {
   return new Date(iso).getTime();
 }
 
+/** Map our timeframe string to KLineChart Period */
+function tfToPeriod(tf: string): { type: "hour" | "minute" | "day"; span: number } {
+  switch (tf) {
+    case "M5":  return { type: "minute", span: 5 };
+    case "M15": return { type: "minute", span: 15 };
+    case "H1":  return { type: "hour", span: 1 };
+    case "H4":  return { type: "hour", span: 4 };
+    case "D1":  return { type: "day", span: 1 };
+    default:    return { type: "hour", span: 4 };
+  }
+}
+
 function buildPhaseSegments(bars: AnalyzeBarDetail[]): PhaseSegment[] {
   if (bars.length === 0) return [];
   const segs: PhaseSegment[] = [];
@@ -211,6 +223,9 @@ export default function AnalysisPage() {
   // Annotation data for overlay
   const annotDataRef = useRef<AnnotationData[]>([]);
 
+  // Candle data ref for chart data loader
+  const candleDataRef = useRef<KLineData[]>([]);
+
   // Build candle map for quick lookup
   const candleMap = useMemo(() => {
     const m = new Map<string, Candle>();
@@ -340,11 +355,23 @@ export default function AnalysisPage() {
     const chart = mainChartRef.current;
     if (!chart || candles.length === 0 || disposedRef.current) return;
     const klineData = candles.map(toKLineData);
+    candleDataRef.current = klineData;
+    console.log("[KLC-main] data ready:", klineData.length, "bars, first:", klineData[0]);
     try {
-      chart.setDataLoader({ getBars: (params) => { params.callback(klineData, false); } });
+      // Order matters: setDataLoader → setPeriod → setSymbol
+      // KLC v10 triggers _processDataLoad('init') on each call, but only fires
+      // getBars when ALL THREE (dataLoader + symbol + period) are non-null.
+      chart.setDataLoader({
+        getBars: (params) => {
+          const data = candleDataRef.current;
+          console.log("[KLC-main] getBars type:", params.type, "len:", data.length);
+          params.callback(params.type === "init" ? data : [], false);
+        },
+      });
+      chart.setPeriod(tfToPeriod(timeframe));
       chart.setSymbol({ ticker: symbol, pricePrecision: 2, volumePrecision: 4 });
-    } catch { /* disposed */ }
-  }, [candles, symbol]);
+    } catch (e) { console.error("[KLC-main] setDataLoader error:", e); }
+  }, [candles, symbol, timeframe]);
 
   /* ------------- Feed data to confidence chart ------------- */
   useEffect(() => {
@@ -353,11 +380,18 @@ export default function AnalysisPage() {
     const confData: KLineData[] = analysisData.bar_details.map((b) => ({
       timestamp: tsMs(b.timestamp), open: b.c, high: b.c, low: b.c, close: b.c, volume: 0,
     }));
+    console.log("[KLC-conf] data ready:", confData.length, "bars");
     try {
-      chart.setDataLoader({ getBars: (params) => { params.callback(confData, false); } });
+      chart.setDataLoader({
+        getBars: (params) => {
+          console.log("[KLC-conf] getBars type:", params.type, "len:", confData.length);
+          params.callback(params.type === "init" ? confData : [], false);
+        },
+      });
+      chart.setPeriod(tfToPeriod(timeframe));
       chart.setSymbol({ ticker: "confidence", pricePrecision: 4, volumePrecision: 0 });
     } catch { /* disposed */ }
-  }, [analysisData]);
+  }, [analysisData, timeframe]);
 
   /* ------------- Update overlays when analysis data changes ------------- */
   useEffect(() => {
