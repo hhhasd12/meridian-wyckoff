@@ -1,0 +1,22 @@
+{
+  "id": "evolution",
+  "name": "进化系统",
+  "version": "0.1.0",
+  "description": "从标注中提取规律，优化引擎参数",
+  "entry": "plugin.py",
+  "dependencies": ["datasource", "annotation", "engine"],
+  "events": {
+    "publishes": [
+      "evolution.params_updated",
+      "evolution.case_created",
+      "evolution.run_completed"
+    ],
+    "subscribes": [
+      "annotation.created",
+      "annotation.updated",
+      "annotation.deleted",
+      "engine.event_detected",
+      "engine.range_created"
+    ]
+  }
+}

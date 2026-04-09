@@ -1,0 +1,91 @@
+[
+  {
+    "id": "overlay_1775637128606_1",
+    "symbol": "ETHUSDT",
+    "type": "trend_line",
+    "points": [
+      {
+        "price": 7.554392821243674
+      },
+      {
+        "price": 9.08557065034298
+      }
+    ],
+    "properties": {
+      "timeframe": "1d"
+    },
+    "created_at": "2026-04-08T08:32:09.393Z",
+    "updated_at": "2026-04-08T08:32:09.394Z"
+  },
+  {
+    "id": "overlay_1775656751282_1",
+    "symbol": "ETHUSDT",
+    "type": "callout",
+    "points": [
+      {
+        "time": 1722816000000,
+        "price": 2111
+      }
+    ],
+    "properties": {
+      "color": "#ef5350",
+      "text": "SC",
+      "eventType": "SC",
+      "timeframe": "1d"
+    },
+    "created_at": "2026-04-08T13:59:20.482Z",
+    "updated_at": "2026-04-08T13:59:20.482Z"
+  },
+  {
+    "id": "overlay_1775656778290_1",
+    "symbol": "ETHUSDT",
+    "type": "callout",
+    "points": [
+      {
+        "time": 1723420800000,
+        "price": 2750
+      }
+    ],
+    "properties": {
+      "color": "#26a69a",
+      "text": "AR",
+      "eventType": "AR",
+      "timeframe": "1d"
+    },
+    "created_at": "2026-04-08T13:59:49.654Z",
+    "updated_at": "2026-04-08T13:59:49.654Z"
+  },
+  {
+    "id": "overlay_1775698769305_1",
+    "symbol": "ETHUSDT",
+    "type": "callout",
+    "points": [
+      {
+        "time": 1759795200000,
+        "price": 4755
+      }
+    ],
+    "properties": {
+      "color": "#ffc107",
+      "text": "UTAD",
+      "eventType": "UTAD",
+      "timeframe": "1d"
+    },
+    "created_at": "2026-04-09T01:39:40.828Z",
+    "updated_at": "2026-04-09T01:39:40.828Z",
+    "auto_features": {
+      "volume_ratio": 1.58,
+      "wick_ratio": 0.053,
+      "body_position": 0.053,
+      "support_distance": 16.13,
+      "effort_result": 3.201,
+      "trend_length": 50,
+      "trend_slope": -0.000593,
+      "subsequent_results": {
+        "5bar": -6.64,
+        "10bar": -13.85,
+        "20bar": -7.36
+      }
+    }
+  }
+]

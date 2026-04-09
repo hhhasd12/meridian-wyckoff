@@ -1,0 +1,1 @@
+{"id": "backtester", "name": "回测框架", "version": "0.1.0", "entry": "plugin.py", "dependencies": ["datasource", "engine", "annotation"]}

@@ -1,1 +1,0 @@
-# Issues - Cognitive Architecture Refactor

@@ -1,0 +1,1 @@
+{"id": "annotation", "name": "标注", "version": "0.1.0", "entry": "plugin.py", "dependencies": ["datasource"]}

@@ -1,7 +1,7 @@
 {
-  "name": "wyckoff-dashboard",
+  "name": "wyckoff-workbench",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,21 +9,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.67.2",
-    "klinecharts": "^10.0.0-beta1",
-    "lucide-react": "^0.474.0",
+    "dexie": "^4.0.11",
+    "klinecharts": "^9.8.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "zundo": "^2.2.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5",
+    "@types/node": "^25.5.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.5.3",
-    "tailwindcss": "^3.4.17",
-    "typescript": "~5.7.2",
-    "vite": "^6.2.4"
+    "typescript": "~5.6.2",
+    "vite": "^6.0.5"
   }
 }

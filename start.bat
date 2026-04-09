@@ -1,51 +1,41 @@
 @echo off
-title Wyckoff Engine v3.0
+chcp 65001 >nul
+title Meridian
 
+cd /d F:\VCPToolBox\wyckoff
+
+echo ================================
+echo   Meridian Starting...
+echo ================================
 echo.
-echo ============================================================
-echo   Wyckoff Trading Engine v3.0
-echo ============================================================
+echo Backend:  http://localhost:6100
+echo Frontend: http://localhost:5173
 echo.
 
-:: Check Python
-python --version >nul 2>&1
+netstat -ano 2>nul | findstr ":6100 " | findstr "LISTENING" >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Python not found. Please install Python 3.9+
-    pause
-    exit /b 1
+    echo [Backend] Starting...
+    start "Meridian Backend" cmd /k "cd /d F:\VCPToolBox\wyckoff && python -m uvicorn backend.main:app --host 0.0.0.0 --port 6100 --reload"
+    echo [Backend] Waiting...
+    timeout /t 3 >nul
+) else (
+    echo [Backend] Port 6100 already in use, skipping.
 )
 
-:: Kill any leftover process on port 9527
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :9527 ^| findstr LISTENING') do (
-    echo [CLEANUP] Killing leftover process on port 9527 (PID: %%a)
-    taskkill /F /PID %%a >nul 2>&1
+netstat -ano 2>nul | findstr ":5173 " | findstr "LISTENING" >nul 2>&1
+if errorlevel 1 (
+    echo [Frontend] Starting...
+    start "Meridian Frontend" cmd /k "cd /d F:\VCPToolBox\wyckoff\frontend && npm run dev"
+    echo [Frontend] Waiting...
+    timeout /t 5 >nul
+) else (
+    echo [Frontend] Port 5173 already in use, skipping.
 )
 
-:: Build frontend if needed
-if not exist "frontend\dist\index.html" (
-    echo [BUILD] Frontend not built, building now...
-    echo.
-    cd frontend
-    call npm install --silent 2>nul
-    call npm run build
-    cd ..
-    echo.
-    if not exist "frontend\dist\index.html" (
-        echo [ERROR] Frontend build failed
-        pause
-        exit /b 1
-    )
-    echo [OK] Frontend build complete
-    echo.
-)
+echo Opening browser...
+start http://localhost:5173
 
-:: Start server (browser opens automatically)
-echo [START] Launching server...
-echo.
-echo   URL: http://localhost:9527
-echo   Browser will open automatically
-echo   Press Ctrl+C to stop
-echo.
-python run.py --mode=api --port=9527
-
+echo ================================
+echo   Done. Browser opened.
+echo ================================
 pause
