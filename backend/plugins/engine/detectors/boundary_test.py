@@ -1,7 +1,14 @@
-"""模板1：边界测试型 — ST/Spring/UTAD/ST-B等"""
+"""模板1：边界测试型 — ST/Spring/UTAD/ST-B等
+
+状态机：IDLE → APPROACHING → PENETRATING → RECOVERING → CONFIRMED/FAILED
+
+> ⚠️ 核心算法已移除。此文件为接口占位，保留类结构和方法签名。
+> 完整实现仅在本机开发环境可用。
+"""
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from ..models import (
@@ -11,10 +18,11 @@ from ..models import (
     RangeContext,
     EngineState,
     Phase,
-    Direction,
 )
 from ..params import EventEngineParams
 from .base_detector import BaseDetector
+
+logger = logging.getLogger(__name__)
 
 
 class BoundaryTestDetector(BaseDetector):
@@ -26,10 +34,7 @@ class BoundaryTestDetector(BaseDetector):
     """
 
     def __init__(self):
-        self._state = "IDLE"
-        self._test_type: EventType | None = None
-        self._start_bar: int = 0
-        self._penetrate_price: float = 0.0
+        self._state: str = "IDLE"
 
     def process_bar(
         self,
@@ -39,91 +44,16 @@ class BoundaryTestDetector(BaseDetector):
         params: EventEngineParams,
         engine_state: EngineState,
     ) -> list[Event]:
+        """每根K线调用一次，返回事件或空列表"""
         if not range_ctx.has_active_range:
             return []
-
         active = range_ctx.active_range
         if active is None:
             return []
 
-        close = candle.get("close", 0)
-        low = candle.get("low", 0)
-        high = candle.get("high", 0)
+        # 核心检测逻辑已移除
+        return []
 
-        lower = active.primary_anchor_1.extreme_price if active.primary_anchor_1 else 0
-        upper = active.opposite_anchor.extreme_price if active.opposite_anchor else 0
-
-        if lower <= 0 or upper <= 0 or upper <= lower:
-            return []
-
-        events = []
-
-        # ─── 下边界测试（ST/Spring/SO） ───
-        if range_ctx.distance_to_lower <= params.approach_distance:
-            if low <= lower:  # 穿越下边界
-                if close > lower:  # 收回 = 成功
-                    test_type = self._classify_lower_test(active, engine_state)
-                    events.append(
-                        Event(
-                            event_id=str(uuid.uuid4()),
-                            event_type=test_type,
-                            event_result=EventResult.SUCCESS,
-                            sequence_start_bar=bar_index,
-                            sequence_end_bar=bar_index,
-                            sequence_length=1,
-                            price_extreme=low,
-                            price_body=close,
-                            penetration_depth=abs(low - lower) / (upper - lower)
-                            if upper > lower
-                            else 0,
-                            position_in_range=range_ctx.position_in_range,
-                            range_id=active.range_id,
-                            phase=active.current_phase,
-                        )
-                    )
-
-        # ─── 上边界测试（UT/UTA/UTAD） ───
-        if range_ctx.distance_to_upper <= params.approach_distance:
-            if high >= upper:  # 穿穿上边界
-                if close < upper:  # 收回 = 成功
-                    test_type = self._classify_upper_test(active, engine_state)
-                    events.append(
-                        Event(
-                            event_id=str(uuid.uuid4()),
-                            event_type=test_type,
-                            event_result=EventResult.SUCCESS,
-                            sequence_start_bar=bar_index,
-                            sequence_end_bar=bar_index,
-                            sequence_length=1,
-                            price_extreme=high,
-                            price_body=close,
-                            penetration_depth=abs(high - upper) / (upper - lower)
-                            if upper > lower
-                            else 0,
-                            position_in_range=range_ctx.position_in_range,
-                            range_id=active.range_id,
-                            phase=active.current_phase,
-                        )
-                    )
-
-        return events
-
-    def _classify_lower_test(self, active, engine_state) -> EventType:
-        """根据阶段分类下边界测试类型"""
-        phase = active.current_phase
-        if phase == Phase.A:
-            return EventType.ST
-        elif phase in (Phase.B, Phase.C):
-            return EventType.SPRING
-        elif phase == Phase.D:
-            return EventType.LPS
-        return EventType.ST_B
-
-    def _classify_upper_test(self, active, engine_state) -> EventType:
-        """根据阶段分类上边界测试类型"""
-        phase = active.current_phase
-        if phase in (Phase.B, Phase.C):
-            return EventType.UTAD
-        elif phase == Phase.D:
-            return EventType.LPSY
-        return EventType.UT
+    def reset(self) -> None:
+        """重置状态机"""
+        self._state = "IDLE"
