@@ -45,6 +45,11 @@ PROGRESS.md
 ROADMAP.md
 docs/
 backend/plugins/*/IMPLEMENTATION.md
+BUG_REPORT.md
+# Internal design docs (kept locally, not published)
+backend/plugins/engine/README.md
+backend/plugins/evolution/README.md
+backend/plugins/backtester/README.md
 
 # === OS ===
 .DS_Store
