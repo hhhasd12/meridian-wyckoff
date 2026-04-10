@@ -42,6 +42,9 @@ NEXT_SESSION_PROMPT*.md
 逻辑.txt
 test_startup.log
 PROGRESS.md
+ROADMAP.md
+docs/
+backend/plugins/*/IMPLEMENTATION.md
 
 # === OS ===
 .DS_Store
