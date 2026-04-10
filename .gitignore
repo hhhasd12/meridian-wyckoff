@@ -1,0 +1,54 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.venv/
+venv/
+env/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# === Node.js ===
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.trae/
+
+# === Runtime data (user-generated, not source) ===
+backend/storage/
+data/*.csv
+
+# === AI / Dev tool artifacts ===
+OPENCODE_*.md
+NEXT_SESSION_PROMPT*.md
+逻辑.txt
+test_startup.log
+PROGRESS.md
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Environment / Secrets ===
+.env
+.env.*
+!.env.example
